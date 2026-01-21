@@ -125,7 +125,7 @@ def video():
         return "Video file not found", 404
     
     # Create cache directory
-    cache_dir = '/tmp/footage-cache'
+    cache_dir = '/opt/footage-browser/cache'
     os.makedirs(cache_dir, exist_ok=True)
     
     # Generate cache filename based on segment info
