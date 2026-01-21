@@ -10,7 +10,7 @@
     <div class="tabs">
         <a href="/" class="tab {% if selected_camera is none %}active{% endif %}">All Cameras</a>
         {% for cam in cameras %}
-        <a href="/?camera={{ cam }}" class="tab {% if selected_camera == cam %}active{% endif %}">Camera {{ cam + 1 }}</a>
+        <a href="/?camera={{ cam.id }}" class="tab {% if selected_camera == cam.id %}active{% endif %}">{{ cam.name }}</a>
         {% endfor %}
     </div>
     

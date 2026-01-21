@@ -23,8 +23,12 @@ def index():
     
     segments = [s for s in load_segments() if start < s['start_time'] < end]
     
-    # Get unique cameras
-    cameras = sorted(set(s['datadir'] for s in segments))
+    # Get unique cameras with names
+    cameras_dict = {}
+    for s in segments:
+        if s['datadir'] not in cameras_dict:
+            cameras_dict[s['datadir']] = {'id': s['datadir'], 'name': s.get('name', f"Camera {s['datadir']}")}
+    cameras = sorted(cameras_dict.values(), key=lambda x: x['id'])
     
     # Filter by camera if specified
     if camera is not None:
