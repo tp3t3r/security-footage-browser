@@ -106,71 +106,28 @@ class FootageParser:
                     continue
                 files_processed.add(file_num)
                 
-                # Use ffprobe to detect scenes/segments on substream
+                # Get duration from substream, serve whole file as one segment
                 try:
-                    # Detect scene changes with ffmpeg on substream
-                    cmd = [
-                        'ffmpeg', '-i', substream_file,
-                        '-filter:v', 'select=gt(scene\\,0.3),showinfo',
-                        '-f', 'null', '-'
-                    ]
-                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-                    
-                    # Parse scene timestamps from stderr
-                    scene_times = [0.0]
-                    for line in result.stderr.split('\n'):
-                        if 'pts_time:' in line:
-                            try:
-                                pts = float(line.split('pts_time:')[1].split()[0])
-                                scene_times.append(pts)
-                            except:
-                                pass
-                    
-                    # Get total duration from substream
                     dur_result = subprocess.run(
                         ['ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
                          '-of', 'default=noprint_wrappers=1:nokey=1', substream_file],
                         capture_output=True, text=True, timeout=5
                     )
                     duration = float(dur_result.stdout.strip())
-                    scene_times.append(duration)
-                    
-                    # Create segments from scene changes
-                    # Use mainstream file mtime for base timestamp
                     mainstream_stat = os.stat(mainstream_file)
                     base_time = int(mainstream_stat.st_mtime)
-                    for i in range(len(scene_times) - 1):
-                        start_sec = scene_times[i]
-                        end_sec = scene_times[i + 1]
-                        
-                        # Skip very short segments (< 5 seconds)
-                        if (end_sec - start_sec) < 5:
-                            continue
-                        
-                        segments.append({
-                            'file': file_num,
-                            'segment': i,
-                            'start_time': base_time + int(start_sec),
-                            'end_time': base_time + int(end_sec),
-                            'start_offset': start_sec,  # Store as time offset for ffmpeg
-                            'end_offset': end_sec
-                        })
-                
-                except Exception as e:
-                    # Fallback: treat whole file as one segment
-                    try:
-                        dur_result = subprocess.run(
-                            ['ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
-                             '-of', 'default=noprint_wrappers=1:nokey=1', substream_file],
-                            capture_output=True, text=True, timeout=5
-                        )
-                        duration = float(dur_result.stdout.strip())
-                        mainstream_stat = os.stat(mainstream_file)
-                        base_time = int(mainstream_stat.st_mtime)
-                        
-                        segments.append({
-                            'file': file_num,
-                            'segment': 0,
+                    
+                    segments.append({
+                        'file': file_num,
+                        'segment': 0,
+                        'start_time': base_time,
+                        'end_time': base_time + int(duration),
+                        'start_offset': 0,
+                        'end_offset': duration
+                    })
+                except:
+                    pass
+            return segments
                             'start_time': base_time,
                             'end_time': base_time + int(duration),
                             'start_offset': 0,
