@@ -11,37 +11,41 @@ def load_segments():
     cache_file = config.get('storage', 'cache_file')
     if os.path.exists(cache_file):
         with open(cache_file, 'r') as f:
-            return json.load(f)
-    return []
+            data = json.load(f)
+            # Handle old format (list) or new format (dict)
+            if isinstance(data, list):
+                return {'cameras': [], 'segments': data}
+            return data
+    return {'cameras': [], 'segments': []}
 
 @app.route('/')
 def index():
-    days = request.args.get('days', config.getint('display', 'default_days'), type=int)
+    days_param = request.args.get('days', config.getint('display', 'default_days'), type=int)
     camera = request.args.get('camera', type=int)
     end = int(datetime.now().timestamp())
-    start = int((datetime.now() - timedelta(days=days)).timestamp())
+    start = int((datetime.now() - timedelta(days=days_param)).timestamp())
     
-    segments = [s for s in load_segments() if start < s['start_time'] < end]
+    data = load_segments()
+    cameras = data['cameras']
+    segments = [s for s in data['segments'] if start < s['start_time'] < end]
     
-    # Get unique cameras with names
-    cameras_dict = {}
-    for s in segments:
-        if s['datadir'] not in cameras_dict:
-            cameras_dict[s['datadir']] = {'id': s['datadir'], 'name': s.get('name', f"Camera {s['datadir']}")}
-    cameras = sorted(cameras_dict.values(), key=lambda x: x['id'])
+    # Create camera lookup
+    camera_map = {c['id']: c for c in cameras}
     
     # Filter by camera if specified
     if camera is not None:
-        segments = [s for s in segments if s['datadir'] == camera]
+        segments = [s for s in segments if s['camera_id'] == camera]
     
     by_day = {}
     for seg in segments:
-        # Use file modification time as fallback since segment timestamps are unreliable
+        cam = camera_map.get(seg['camera_id'], {})
         day = datetime.fromtimestamp(seg['start_time']).strftime('%Y-%m-%d') if seg['start_time'] > 1000000000 else 'Unknown'
         if day not in by_day:
             by_day[day] = []
+        
         seg['start_time_str'] = datetime.fromtimestamp(seg['start_time']).strftime('%Y-%m-%d %H:%M:%S') if seg['start_time'] > 1000000000 else 'N/A'
-        seg['end_time_str'] = ''
+        seg['path'] = cam.get('path', '')
+        seg['name'] = cam.get('name', f"Camera {seg['camera_id']}")
         
         # Get file size from segment offsets
         seg['size_bytes'] = seg['end_offset'] - seg['start_offset']
@@ -64,17 +68,23 @@ def index():
 
 @app.route('/video')
 def video():
-    datadir = request.args.get('datadir', type=int)
+    camera_id = request.args.get('camera_id', type=int)
     file_num = request.args.get('file', type=int)
     segment = request.args.get('segment', type=int)
     
-    segments = load_segments()
-    seg = next((s for s in segments if s['datadir'] == datadir and s['file'] == file_num and s['segment'] == segment), None)
+    data = load_segments()
+    camera_map = {c['id']: c for c in data['cameras']}
+    
+    seg = next((s for s in data['segments'] if s['camera_id'] == camera_id and s['file'] == file_num and s['segment'] == segment), None)
     
     if not seg:
         return "Segment not found", 404
     
-    video_file = os.path.join(seg['path'], f'hiv{file_num:05d}.mp4')
+    cam = camera_map.get(camera_id)
+    if not cam:
+        return "Camera not found", 404
+    
+    video_file = os.path.join(cam['path'], f'hiv{file_num:05d}.mp4')
     
     if not os.path.exists(video_file):
         return "Video file not found", 404

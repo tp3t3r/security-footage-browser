@@ -40,8 +40,14 @@ class FootageParser:
         for datadir in self.datadirs:
             segments.extend(self._parse_index(datadir))
         
+        # Structure: cameras list + segments with camera references
+        cache_data = {
+            'cameras': [{'id': d['num'], 'name': d['name'], 'path': d['path']} for d in self.datadirs],
+            'segments': segments
+        }
+        
         with open(self.cache_file, 'w') as f:
-            json.dump(segments, f)
+            json.dump(cache_data, f)
         
         return segments
     
@@ -80,9 +86,7 @@ class FootageParser:
                     video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
                     if os.path.exists(video_file):
                         segments.append({
-                            'datadir': datadir['num'],
-                            'path': datadir['path'],
-                            'name': datadir.get('name', f"Camera {datadir['num']}"),
+                            'camera_id': datadir['num'],
                             'file': file_num,
                             'segment': seg_idx,
                             'start_time': start_time,

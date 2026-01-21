@@ -21,10 +21,10 @@
         <div class="segment">
             <p>
                 File: hiv{{ '%05d'|format(seg.file) }}.mp4 Segment {{ seg.segment }} - {{ seg.start_time_str }} ({{ seg.size }})
-                <a href="/video?datadir={{ seg.datadir }}&file={{ seg.file }}&segment={{ seg.segment }}" download="hiv{{ '%05d'|format(seg.file) }}_seg{{ seg.segment }}.mp4" class="download-btn">Download</a>
+                <a href="/video?camera_id={{ seg.camera_id }}&file={{ seg.file }}&segment={{ seg.segment }}" download="hiv{{ '%05d'|format(seg.file) }}_seg{{ seg.segment }}.mp4" class="download-btn">Download</a>
             </p>
             <video controls>
-                <source src="/video?datadir={{ seg.datadir }}&file={{ seg.file }}&segment={{ seg.segment }}" type="video/mp4">
+                <source src="/video?camera_id={{ seg.camera_id }}&file={{ seg.file }}&segment={{ seg.segment }}" type="video/mp4">
             </video>
         </div>
         {% endfor %}
