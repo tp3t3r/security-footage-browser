@@ -12,7 +12,7 @@ FILE_LEN = 80
 SEGMENT_LEN = 128
 
 class FootageParser:
-    def __init__(self, datadirs, cache_file, cameras):
+    def __init__(self, datadirs, metacache_file, cameras):
         self.datadirs = []
         for i, path in enumerate(datadirs):
             cam_name = cameras[i]['name'] if i < len(cameras) else f"Camera {i}"
@@ -29,7 +29,7 @@ class FootageParser:
                 index_file = os.path.join(path, 'index00.bin')
                 if os.path.exists(index_file):
                     self.datadirs.append({'path': path, 'index': index_file, 'num': i, 'name': cam_name})
-        self.cache_file = cache_file
+        self.metacache_file = metacache_file
     
     def _parse_info_bin(self, info_file):
         with open(info_file, 'rb') as f:
@@ -47,7 +47,7 @@ class FootageParser:
             'segments': segments_by_camera
         }
         
-        with open(self.cache_file, 'w') as f:
+        with open(self.metacache_file, 'w') as f:
             json.dump(cache_data, f)
         
         return segments_by_camera
@@ -119,8 +119,8 @@ class IndexWatcher(FileSystemEventHandler):
             print(f"Index updated: {event.src_path}")
             self.parser.parse_all()
 
-def run_parser(datadirs, cache_file, interval, cameras):
-    parser = FootageParser(datadirs, cache_file, cameras)
+def run_parser(datadirs, metacache_file, interval, cameras):
+    parser = FootageParser(datadirs, metacache_file, cameras)
     
     if not parser.datadirs:
         print("No valid datadirs found. Exiting.")
@@ -159,7 +159,7 @@ if __name__ == '__main__':
             })
     
     datadirs = [cam['path'] for cam in cameras]
-    cache_file = config.get('storage', 'cache_file')
+    metacache_file = config.get('storage', 'metacache_file')
     interval = config.getint('parser', 'index_parse_timeout')
     
-    run_parser(datadirs, cache_file, interval, cameras)
+    run_parser(datadirs, metacache_file, interval, cameras)

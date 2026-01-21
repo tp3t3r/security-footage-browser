@@ -10,9 +10,9 @@ app = Flask(__name__)
 config = None
 
 def load_segments():
-    cache_file = config.get('storage', 'cache_file')
-    if os.path.exists(cache_file):
-        with open(cache_file, 'r') as f:
+    metacache_file = config.get('storage', 'metacache_file')
+    if os.path.exists(metacache_file):
+        with open(metacache_file, 'r') as f:
             data = json.load(f)
             # Handle old format (list) or new format (dict with grouped segments)
             if isinstance(data, list):
@@ -46,8 +46,8 @@ def index():
     camera_map = {i: c for i, c in enumerate(data['cameras'])}
     
     # Calculate metadata
-    cache_file = config.get('storage', 'cache_file')
-    cache_size = os.path.getsize(cache_file) if os.path.exists(cache_file) else 0
+    metacache_file = config.get('storage', 'metacache_file')
+    cache_size = os.path.getsize(metacache_file) if os.path.exists(metacache_file) else 0
     if cache_size < 1024:
         cache_size_str = f'{cache_size} B'
     elif cache_size < 1024**2:
