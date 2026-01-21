@@ -77,16 +77,15 @@ def index():
         seg['path'] = cam.get('path', '')
         seg['name'] = cam.get('name', f"Camera {seg['camera_id']}")
         
-        # Get file size from segment offsets
-        seg['size_bytes'] = seg['end_offset'] - seg['start_offset']
-        if seg['size_bytes'] < 1024:
-            seg['size'] = f'{seg["size_bytes"]} B'
-        elif seg['size_bytes'] < 1024**2:
-            seg['size'] = f'{seg["size_bytes"]/1024:.1f} KB'
-        elif seg['size_bytes'] < 1024**3:
-            seg['size'] = f'{seg["size_bytes"]/1024**2:.1f} MB'
+        # Estimate size (actual size determined on extraction)
+        duration = seg['end_time'] - seg['start_time']
+        # Rough estimate: 1-2 Mbps for H.264
+        estimated_bytes = duration * 150000  # ~1.2 Mbps
+        seg['size_bytes'] = estimated_bytes
+        if estimated_bytes < 1024**2:
+            seg['size'] = f'~{estimated_bytes/1024:.0f} KB'
         else:
-            seg['size'] = f'{seg["size_bytes"]/1024**3:.1f} GB'
+            seg['size'] = f'~{estimated_bytes/1024**2:.1f} MB'
         
         by_day[day].append(seg)
     
