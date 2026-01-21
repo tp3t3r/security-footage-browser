@@ -18,8 +18,8 @@ class FootageParser:
             # Check if path contains info.bin (NAS structure)
             info_file = os.path.join(path, 'info.bin')
             if os.path.exists(info_file):
-                # Only use datadir1 (substream for testing)
-                datadir_path = os.path.join(path, 'datadir1')
+                # Use datadir0 (main stream)
+                datadir_path = os.path.join(path, 'datadir0')
                 index_file = os.path.join(datadir_path, 'index00.bin')
                 if os.path.exists(index_file):
                     self.datadirs.append({'path': datadir_path, 'index': index_file, 'num': len(self.datadirs), 'name': cam_name})
