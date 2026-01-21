@@ -17,13 +17,11 @@ class FootageParser:
             # Check if path contains info.bin (NAS structure)
             info_file = os.path.join(path, 'info.bin')
             if os.path.exists(info_file):
-                # Parse info.bin to get datadir count
-                datadir_count = self._parse_info_bin(info_file)
-                for j in range(datadir_count):
-                    datadir_path = os.path.join(path, f'datadir{j}')
-                    index_file = os.path.join(datadir_path, 'index00.bin')
-                    if os.path.exists(index_file):
-                        self.datadirs.append({'path': datadir_path, 'index': index_file, 'num': len(self.datadirs)})
+                # Only use datadir1 (substream for testing)
+                datadir_path = os.path.join(path, 'datadir1')
+                index_file = os.path.join(datadir_path, 'index00.bin')
+                if os.path.exists(index_file):
+                    self.datadirs.append({'path': datadir_path, 'index': index_file, 'num': len(self.datadirs), 'name': os.path.basename(path)})
             else:
                 # Direct datadir path
                 index_file = os.path.join(path, 'index00.bin')
@@ -59,6 +57,7 @@ class FootageParser:
                     segments.append({
                         'datadir': datadir['num'],
                         'path': datadir['path'],
+                        'name': datadir.get('name', f"Camera {datadir['num']}"),
                         'file': file_num,
                         'start_time': int(stat.st_mtime),
                         'end_time': 0,
