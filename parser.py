@@ -86,7 +86,13 @@ class FootageParser:
                     start_time = start_time_64 & 0xFFFFFFFF
                     end_time = end_time_64 & 0xFFFFFFFF
                     
-                    if end_time == 0:
+                    # Skip invalid timestamps
+                    if end_time == 0 or start_time == 0:
+                        continue
+                    if end_time < start_time:
+                        continue
+                    # Skip unreasonable durations (> 1 hour)
+                    if (end_time - start_time) > 3600:
                         continue
                     
                     # Check if video file exists and has content
