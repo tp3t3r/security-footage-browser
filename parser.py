@@ -51,35 +51,20 @@ class FootageParser:
             header = struct.unpack('<QIIIII1172s76sI', f.read(HEADER_LEN))
             av_files = header[2]
             
-            f.seek(HEADER_LEN + (av_files * FILE_LEN))
-            
-            files_seen = set()
             segments = []
             for file_num in range(av_files):
-                for _ in range(256):
-                    data = f.read(SEGMENT_LEN)
-                    if len(data) < SEGMENT_LEN:
-                        break
-                    
-                    seg_type = data[0]
-                    start_time = struct.unpack('<I', data[36:40])[0]
-                    end_time = struct.unpack('<I', data[40:44])[0]
-                    start_offset = struct.unpack('<I', data[44:48])[0]
-                    end_offset = struct.unpack('<I', data[48:52])[0]
-                    
-                    # Only add each file once (first valid segment)
-                    if seg_type != 0 and end_time != 0 and file_num not in files_seen:
-                        files_seen.add(file_num)
-                        segments.append({
-                            'datadir': datadir['num'],
-                            'path': datadir['path'],
-                            'file': file_num,
-                            'start_time': start_time,
-                            'end_time': end_time,
-                            'start_offset': start_offset,
-                            'end_offset': end_offset
-                        })
-                        break  # Move to next file
+                video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
+                if os.path.exists(video_file):
+                    stat = os.stat(video_file)
+                    segments.append({
+                        'datadir': datadir['num'],
+                        'path': datadir['path'],
+                        'file': file_num,
+                        'start_time': int(stat.st_mtime),
+                        'end_time': 0,
+                        'start_offset': 0,
+                        'end_offset': stat.st_size
+                    })
             return segments
 
 class IndexWatcher(FileSystemEventHandler):
