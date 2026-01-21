@@ -1,0 +1,6 @@
+[Unit]
+Description=Security Footage Browser
+Wants=footage-parser.service footage-web.service
+
+[Install]
+WantedBy=multi-user.target

@@ -29,6 +29,7 @@ chown -R footage:footage /etc/footage-browser
 # Install systemd services
 cp footage-parser.service /etc/systemd/system/
 cp footage-web.service /etc/systemd/system/
+cp footage-browser.target /etc/systemd/system/
 
 # Reload systemd
 systemctl daemon-reload
