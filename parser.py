@@ -52,23 +52,56 @@ class FootageParser:
         return segments_by_camera
     
     def _parse_index(self, datadir):
-        # Simplified: just list all video files that exist
-        segments = []
-        for file_num in range(1000):  # Check up to 1000 files
-            video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
-            if os.path.exists(video_file):
-                stat = os.stat(video_file)
-                # Only include files with actual content (>1KB)
-                if stat.st_size > 1024:
-                    segments.append({
-                        'file': file_num,
-                        'segment': 0,
-                        'start_time': int(stat.st_mtime),
-                        'end_time': 0,
-                        'start_offset': 0,
-                        'end_offset': stat.st_size
-                    })
-        return segments
+        with open(datadir['index'], 'rb') as f:
+            # Read header
+            header_data = f.read(HEADER_LEN)
+            av_files = struct.unpack('<xxIxx', header_data[8:16])[0]
+            
+            # Skip to segment section
+            f.seek(HEADER_LEN + (av_files * FILE_LEN))
+            
+            segments = []
+            files_seen = set()
+            
+            for file_num in range(av_files):
+                for seg_idx in range(256):
+                    data = f.read(SEGMENT_LEN)
+                    if len(data) < SEGMENT_LEN:
+                        break
+                    
+                    # Parse segment: type(1) status(1) res1(2) resolution(4) startTime(8) endTime(8) ...
+                    seg_type = data[0]
+                    if seg_type == 0:
+                        continue
+                    
+                    # Extract 64-bit timestamps and convert to 32-bit
+                    start_time_64 = struct.unpack('<Q', data[8:16])[0]
+                    end_time_64 = struct.unpack('<Q', data[16:24])[0]
+                    
+                    # Convert to 32-bit time_t (seconds since epoch)
+                    start_time = start_time_64 & 0xFFFFFFFF
+                    end_time = end_time_64 & 0xFFFFFFFF
+                    
+                    if end_time == 0:
+                        continue
+                    
+                    # Only add first valid segment per file
+                    if file_num not in files_seen:
+                        video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
+                        if os.path.exists(video_file):
+                            stat = os.stat(video_file)
+                            if stat.st_size > 1024:
+                                files_seen.add(file_num)
+                                segments.append({
+                                    'file': file_num,
+                                    'segment': 0,
+                                    'start_time': start_time,
+                                    'end_time': end_time,
+                                    'start_offset': 0,
+                                    'end_offset': stat.st_size
+                                })
+                                break
+            return segments
 
 class IndexWatcher(FileSystemEventHandler):
     def __init__(self, parser):
