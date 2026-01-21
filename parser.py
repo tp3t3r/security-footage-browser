@@ -128,11 +128,6 @@ class FootageParser:
                 except:
                     pass
             return segments
-                            'start_time': base_time,
-                            'end_time': base_time + int(duration),
-                            'start_offset': 0,
-                            'end_offset': duration
-                        })
                     except:
                         pass
             return segments
