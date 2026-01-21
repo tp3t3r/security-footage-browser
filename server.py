@@ -17,20 +17,32 @@ def load_segments():
 @app.route('/')
 def index():
     days = request.args.get('days', config.getint('display', 'default_days'), type=int)
+    camera = request.args.get('camera', type=int)
     end = int(datetime.now().timestamp())
     start = int((datetime.now() - timedelta(days=days)).timestamp())
     
     segments = [s for s in load_segments() if start < s['start_time'] < end]
-    by_day = {}
     
+    # Get unique cameras
+    cameras = sorted(set(s['datadir'] for s in segments))
+    
+    # Filter by camera if specified
+    if camera is not None:
+        segments = [s for s in segments if s['datadir'] == camera]
+    
+    by_day = {}
     for seg in segments:
         day = datetime.fromtimestamp(seg['start_time']).strftime('%Y-%m-%d')
         if day not in by_day:
             by_day[day] = []
+        seg['start_time_str'] = datetime.fromtimestamp(seg['start_time']).strftime('%H:%M:%S')
+        seg['end_time_str'] = datetime.fromtimestamp(seg['end_time']).strftime('%H:%M:%S')
         by_day[day].append(seg)
     
     return render_template('index.html', 
                          days=sorted(by_day.items(), reverse=True),
+                         cameras=cameras,
+                         selected_camera=camera,
                          title=config.get('app', 'title'))
 
 @app.route('/video')

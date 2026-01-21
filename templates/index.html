@@ -6,12 +6,20 @@
 </head>
 <body>
     <h1>{{ title }}</h1>
+    
+    <div class="tabs">
+        <a href="/" class="tab {% if selected_camera is none %}active{% endif %}">All Cameras</a>
+        {% for cam in cameras %}
+        <a href="/?camera={{ cam }}" class="tab {% if selected_camera == cam %}active{% endif %}">Camera {{ cam + 1 }}</a>
+        {% endfor %}
+    </div>
+    
     {% for day, segments in days %}
     <div class="day">
         <h2>{{ day }} ({{ segments|length }} recordings)</h2>
         {% for seg in segments %}
         <div class="segment">
-            <p>{{ seg.start_time }} - {{ seg.end_time }}</p>
+            <p>{{ seg.start_time_str }} - {{ seg.end_time_str }}</p>
             <video controls>
                 <source src="/video?datadir={{ seg.datadir }}&file={{ seg.file }}&start={{ seg.start_offset }}&end={{ seg.end_offset }}" type="video/mp4">
             </video>
