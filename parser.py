@@ -53,6 +53,7 @@ class FootageParser:
             
             f.seek(HEADER_LEN + (av_files * FILE_LEN))
             
+            files_seen = set()
             segments = []
             for file_num in range(av_files):
                 for _ in range(256):
@@ -66,7 +67,9 @@ class FootageParser:
                     start_offset = struct.unpack('<I', data[44:48])[0]
                     end_offset = struct.unpack('<I', data[48:52])[0]
                     
-                    if seg_type != 0 and end_time != 0:
+                    # Only add each file once (first valid segment)
+                    if seg_type != 0 and end_time != 0 and file_num not in files_seen:
+                        files_seen.add(file_num)
                         segments.append({
                             'datadir': datadir['num'],
                             'path': datadir['path'],
@@ -76,6 +79,7 @@ class FootageParser:
                             'start_offset': start_offset,
                             'end_offset': end_offset
                         })
+                        break  # Move to next file
             return segments
 
 class IndexWatcher(FileSystemEventHandler):
