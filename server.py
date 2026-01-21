@@ -38,6 +38,22 @@ def index():
             by_day[day] = []
         seg['start_time_str'] = datetime.fromtimestamp(seg['start_time']).strftime('%Y-%m-%d %H:%M:%S') if seg['start_time'] > 1000000000 else 'N/A'
         seg['end_time_str'] = ''
+        
+        # Get file size
+        video_file = os.path.join(seg['path'], f'hiv{seg["file"]:05d}.mp4')
+        if os.path.exists(video_file):
+            size_bytes = os.path.getsize(video_file)
+            if size_bytes < 1024:
+                seg['size'] = f'{size_bytes} B'
+            elif size_bytes < 1024**2:
+                seg['size'] = f'{size_bytes/1024:.1f} KB'
+            elif size_bytes < 1024**3:
+                seg['size'] = f'{size_bytes/1024**2:.1f} MB'
+            else:
+                seg['size'] = f'{size_bytes/1024**3:.1f} GB'
+        else:
+            seg['size'] = 'N/A'
+        
         by_day[day].append(seg)
     
     return render_template('index.html', 
