@@ -65,7 +65,7 @@ def video():
         return "Video file not found", 404
     
     # Create cache filename
-    cache_dir = '/tmp/footage-cache'
+    cache_dir = '/opt/footage-browser/cache'
     os.makedirs(cache_dir, exist_ok=True)
     cache_file = os.path.join(cache_dir, f'{datadir}_{file_num}_{start}_{end}.mp4')
     
