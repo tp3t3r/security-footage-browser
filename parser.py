@@ -2,6 +2,7 @@ import struct
 import os
 import json
 import time
+import subprocess
 from datetime import datetime
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -91,22 +92,35 @@ class FootageParser:
                         continue
                     if end_time < start_time:
                         continue
-                    # Skip unreasonable durations (> 1 hour)
-                    if (end_time - start_time) > 3600:
-                        continue
                     
                     # Check if video file exists and has content
                     video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
                     if os.path.exists(video_file):
                         stat = os.stat(video_file)
-                        # Skip empty files and use actual file size
+                        # Skip empty files
                         if stat.st_size > 1024:
+                            # Get actual duration from video file
+                            try:
+                                result = subprocess.run(
+                                    ['ffprobe', '-v', 'quiet', '-show_entries', 'format=duration', 
+                                     '-of', 'default=noprint_wrappers=1:nokey=1', video_file],
+                                    capture_output=True, text=True, timeout=5
+                                )
+                                duration = float(result.stdout.strip())
+                                # Use file modification time as start time
+                                actual_start = int(stat.st_mtime)
+                                actual_end = actual_start + int(duration)
+                            except:
+                                # Fallback to index timestamps if ffprobe fails
+                                actual_start = start_time
+                                actual_end = end_time
+                            
                             files_seen.add(file_num)
                             segments.append({
                                 'file': file_num,
                                 'segment': 0,
-                                'start_time': start_time,
-                                'end_time': end_time,
+                                'start_time': actual_start,
+                                'end_time': actual_end,
                                 'start_offset': 0,
                                 'end_offset': stat.st_size
                             })
