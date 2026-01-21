@@ -14,10 +14,28 @@ class FootageParser:
     def __init__(self, datadirs, cache_file):
         self.datadirs = []
         for i, path in enumerate(datadirs):
-            index_file = os.path.join(path, 'index00.bin')
-            if os.path.exists(index_file):
-                self.datadirs.append({'path': path, 'index': index_file, 'num': i})
+            # Check if path contains info.bin (NAS structure)
+            info_file = os.path.join(path, 'info.bin')
+            if os.path.exists(info_file):
+                # Parse info.bin to get datadir count
+                datadir_count = self._parse_info_bin(info_file)
+                for j in range(datadir_count):
+                    datadir_path = os.path.join(path, f'datadir{j}')
+                    index_file = os.path.join(datadir_path, 'index00.bin')
+                    if os.path.exists(index_file):
+                        self.datadirs.append({'path': datadir_path, 'index': index_file, 'num': len(self.datadirs)})
+            else:
+                # Direct datadir path
+                index_file = os.path.join(path, 'index00.bin')
+                if os.path.exists(index_file):
+                    self.datadirs.append({'path': path, 'index': index_file, 'num': i})
         self.cache_file = cache_file
+    
+    def _parse_info_bin(self, info_file):
+        with open(info_file, 'rb') as f:
+            data = f.read(72)  # NASINFO_LEN
+            unpacked = struct.unpack('<48s12s2sIII', data)
+            return unpacked[5]  # DataDirs count
     
     def parse_all(self):
         segments = []
