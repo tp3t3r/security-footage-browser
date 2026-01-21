@@ -2,12 +2,7 @@
 <html>
 <head>
     <title>{{ title }}</title>
-    <style>
-        body { font-family: Arial; margin: 20px; }
-        .day { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
-        .segment { margin: 10px 0; }
-        video { max-width: 640px; }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <h1>{{ title }}</h1>

@@ -15,6 +15,7 @@ mkdir -p /etc/footage-browser
 # Copy files
 cp -r * /opt/footage-browser/ 2>/dev/null || true
 cp -r templates /opt/footage-browser/
+cp -r static /opt/footage-browser/
 cp config/app.conf /etc/footage-browser/
 
 # Update config path in scripts
