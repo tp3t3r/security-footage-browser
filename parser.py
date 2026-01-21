@@ -36,20 +36,20 @@ class FootageParser:
             return struct.unpack('<I', f.read(4))[0]
     
     def parse_all(self):
-        segments = []
+        segments_by_camera = {}
         for datadir in self.datadirs:
-            segments.extend(self._parse_index(datadir))
+            cam_id = str(datadir['num'])
+            segments_by_camera[cam_id] = self._parse_index(datadir)
         
-        # Structure: cameras list + segments with camera references
         cache_data = {
             'cameras': [{'name': d['name'], 'path': d['path']} for d in self.datadirs],
-            'segments': segments
+            'segments': segments_by_camera
         }
         
         with open(self.cache_file, 'w') as f:
             json.dump(cache_data, f)
         
-        return segments
+        return segments_by_camera
     
     def _parse_index(self, datadir):
         with open(datadir['index'], 'rb') as f:
@@ -86,7 +86,6 @@ class FootageParser:
                     video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
                     if os.path.exists(video_file):
                         segments.append({
-                            'camera_id': datadir['num'],
                             'file': file_num,
                             'segment': seg_idx,
                             'start_time': start_time,

@@ -12,11 +12,14 @@ def load_segments():
     if os.path.exists(cache_file):
         with open(cache_file, 'r') as f:
             data = json.load(f)
-            # Handle old format (list) or new format (dict)
+            # Handle old format (list) or new format (dict with grouped segments)
             if isinstance(data, list):
-                return {'cameras': [], 'segments': data}
+                return {'cameras': [], 'segments': {}}
+            if 'segments' in data and isinstance(data['segments'], list):
+                # Old format with flat list
+                return {'cameras': data.get('cameras', []), 'segments': {}}
             return data
-    return {'cameras': [], 'segments': []}
+    return {'cameras': [], 'segments': {}}
 
 @app.route('/')
 def index():
@@ -27,7 +30,15 @@ def index():
     
     data = load_segments()
     cameras = [{'id': i, 'name': c['name']} for i, c in enumerate(data['cameras'])]
-    segments = [s for s in data['segments'] if start < s['start_time'] < end]
+    
+    # Flatten segments from all cameras
+    all_segments = []
+    for cam_id, segs in data['segments'].items():
+        for seg in segs:
+            seg['camera_id'] = int(cam_id)
+            all_segments.append(seg)
+    
+    segments = [s for s in all_segments if start < s['start_time'] < end]
     
     # Create camera lookup
     camera_map = {i: c for i, c in enumerate(data['cameras'])}
