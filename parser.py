@@ -60,12 +60,11 @@ class FootageParser:
                     if len(data) < SEGMENT_LEN:
                         break
                     
-                    # Extract only the fields we need
                     seg_type = data[0]
-                    start_time = struct.unpack('<Q', data[12:20])[0] & 0xFFFFFFFF
-                    end_time = struct.unpack('<Q', data[20:28])[0] & 0xFFFFFFFF
-                    start_offset = struct.unpack('<I', data[40:44])[0]
-                    end_offset = struct.unpack('<I', data[44:48])[0]
+                    start_time = struct.unpack('<I', data[36:40])[0]
+                    end_time = struct.unpack('<I', data[40:44])[0]
+                    start_offset = struct.unpack('<I', data[44:48])[0]
+                    end_offset = struct.unpack('<I', data[48:52])[0]
                     
                     if seg_type != 0 and end_time != 0:
                         segments.append({
