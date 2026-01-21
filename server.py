@@ -64,20 +64,7 @@ def video():
     if not os.path.exists(video_file):
         return "Video file not found", 404
     
-    # Stream the segment portion of the video file
-    def generate():
-        with open(video_file, 'rb') as f:
-            f.seek(start)
-            remaining = end - start
-            chunk_size = 8192
-            while remaining > 0:
-                chunk = f.read(min(chunk_size, remaining))
-                if not chunk:
-                    break
-                remaining -= len(chunk)
-                yield chunk
-    
-    return app.response_class(generate(), mimetype='video/mp4')
+    return send_file(video_file, mimetype='video/mp4')
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
