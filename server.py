@@ -79,13 +79,18 @@ def index():
         
         # Estimate size (actual size determined on extraction)
         duration = seg['end_time'] - seg['start_time']
-        # Rough estimate: 1-2 Mbps for H.264
-        estimated_bytes = duration * 150000  # ~1.2 Mbps
-        seg['size_bytes'] = estimated_bytes
-        if estimated_bytes < 1024**2:
-            seg['size'] = f'~{estimated_bytes/1024:.0f} KB'
+        # Cap unreasonable durations (max 1 hour)
+        if duration > 3600 or duration < 0:
+            seg['size'] = 'Unknown'
+            seg['size_bytes'] = 0
         else:
-            seg['size'] = f'~{estimated_bytes/1024**2:.1f} MB'
+            # Rough estimate: 1-2 Mbps for H.264
+            estimated_bytes = duration * 150000  # ~1.2 Mbps
+            seg['size_bytes'] = estimated_bytes
+            if estimated_bytes < 1024**2:
+                seg['size'] = f'~{estimated_bytes/1024:.0f} KB'
+            else:
+                seg['size'] = f'~{estimated_bytes/1024**2:.1f} MB'
         
         by_day[day].append(seg)
     
