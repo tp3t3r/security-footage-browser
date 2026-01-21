@@ -145,6 +145,6 @@ if __name__ == '__main__':
     
     datadirs = [cam['path'] for cam in cameras]
     cache_file = config.get('storage', 'cache_file')
-    interval = config.getint('parser', 'interval')
+    interval = config.getint('parser', 'index_parse_timeout')
     
     run_parser(datadirs, cache_file, interval, cameras)
