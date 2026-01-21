@@ -64,7 +64,28 @@ def video():
     if not os.path.exists(video_file):
         return "Video file not found", 404
     
-    return send_file(video_file, mimetype='video/mp4')
+    # Create cache filename
+    cache_dir = '/tmp/footage-cache'
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, f'{datadir}_{file_num}_{start}_{end}.mp4')
+    
+    # Extract and convert segment if not cached
+    if not os.path.exists(cache_file):
+        import subprocess
+        h264_file = cache_file + '.h264'
+        
+        # Extract raw H.264 segment
+        with open(video_file, 'rb') as f:
+            f.seek(start)
+            with open(h264_file, 'wb') as out:
+                out.write(f.read(end - start))
+        
+        # Convert to MP4 container
+        subprocess.run(['ffmpeg', '-i', h264_file, '-c:v', 'copy', '-c:a', 'none', cache_file],
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        os.remove(h264_file)
+    
+    return send_file(cache_file, mimetype='video/mp4')
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
