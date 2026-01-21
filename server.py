@@ -2,6 +2,8 @@ from flask import Flask, render_template, request, send_file
 import os
 import json
 import configparser
+import subprocess
+import hashlib
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
@@ -100,6 +102,7 @@ def index():
 def video():
     camera_id = request.args.get('camera_id', type=int)
     file_num = request.args.get('file', type=int)
+    segment_num = request.args.get('segment', type=int)
     
     data = load_segments()
     camera_map = {i: c for i, c in enumerate(data['cameras'])}
@@ -108,12 +111,51 @@ def video():
     if not cam:
         return "Camera not found", 404
     
-    video_file = os.path.join(cam['path'], f'hiv{file_num:05d}.mp4')
+    # Find segment info
+    segments = data['segments'].get(str(camera_id), [])
+    segment = next((s for s in segments if s['file'] == file_num and s['segment'] == segment_num), None)
+    if not segment:
+        return "Segment not found", 404
     
+    video_file = os.path.join(cam['path'], f'hiv{file_num:05d}.mp4')
     if not os.path.exists(video_file):
         return "Video file not found", 404
     
-    return send_file(video_file, mimetype='video/mp4', as_attachment=False)
+    # Create cache directory
+    cache_dir = '/tmp/footage-cache'
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    # Generate cache filename based on segment info
+    cache_key = f"{camera_id}_{file_num}_{segment_num}_{segment['start_offset']}_{segment['end_offset']}"
+    cache_hash = hashlib.md5(cache_key.encode()).hexdigest()
+    cached_file = os.path.join(cache_dir, f'{cache_hash}.mp4')
+    
+    # Extract segment if not cached
+    if not os.path.exists(cached_file):
+        start_offset = segment['start_offset']
+        end_offset = segment['end_offset']
+        size = end_offset - start_offset
+        
+        # Use ffmpeg to extract and remux the segment
+        cmd = [
+            'ffmpeg', '-y',
+            '-ss', '0',
+            '-i', f'file:{video_file}',
+            '-map', '0:v:0',
+            '-c', 'copy',
+            '-f', 'mp4',
+            '-movflags', 'frag_keyframe+empty_moov',
+            cached_file
+        ]
+        
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, timeout=30)
+        except subprocess.CalledProcessError as e:
+            return f"Extraction failed: {e.stderr.decode()}", 500
+        except subprocess.TimeoutExpired:
+            return "Extraction timeout", 500
+    
+    return send_file(cached_file, mimetype='video/mp4', as_attachment=False)
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
