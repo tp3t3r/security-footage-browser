@@ -60,16 +60,22 @@ class FootageParser:
                     if len(data) < SEGMENT_LEN:
                         break
                     
-                    seg = struct.unpack('<BB2x4sQQQIIII4x4s8s16s16s16s16s', data)
-                    if seg[0] != 0 and seg[6] != 0:
+                    # Extract only the fields we need
+                    seg_type = data[0]
+                    start_time = struct.unpack('<Q', data[12:20])[0] & 0xFFFFFFFF
+                    end_time = struct.unpack('<Q', data[20:28])[0] & 0xFFFFFFFF
+                    start_offset = struct.unpack('<I', data[40:44])[0]
+                    end_offset = struct.unpack('<I', data[44:48])[0]
+                    
+                    if seg_type != 0 and end_time != 0:
                         segments.append({
                             'datadir': datadir['num'],
                             'path': datadir['path'],
                             'file': file_num,
-                            'start_time': seg[5] & 0xFFFFFFFF,
-                            'end_time': seg[6] & 0xFFFFFFFF,
-                            'start_offset': seg[9],
-                            'end_offset': seg[10]
+                            'start_time': start_time,
+                            'end_time': end_time,
+                            'start_offset': start_offset,
+                            'end_offset': end_offset
                         })
             return segments
 
