@@ -48,7 +48,7 @@ class FootageParser:
     
     def _parse_index(self, datadir):
         with open(datadir['index'], 'rb') as f:
-            header = struct.unpack('<QIIIII1176sI76s', f.read(HEADER_LEN))
+            header = struct.unpack('<QIIIII1172s76sI', f.read(HEADER_LEN))
             av_files = header[2]
             
             f.seek(HEADER_LEN + (av_files * FILE_LEN))
