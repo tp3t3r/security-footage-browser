@@ -7,8 +7,14 @@
 <body>
     <h1>{{ title }}</h1>
     
+    <div class="metadata">
+        <p>Cache: {{ cache_size }}</p>
+        {% for cam in cameras %}
+        <p>{{ cam.name }} - Last recording: {{ last_recordings.get(cam.id, 'N/A') }}</p>
+        {% endfor %}
+    </div>
+    
     <div class="tabs">
-        <a href="/" class="tab {% if selected_camera is none %}active{% endif %}">All Cameras</a>
         {% for cam in cameras %}
         <a href="/?camera={{ cam.id }}" class="tab {% if selected_camera == cam.id %}active{% endif %}">{{ cam.name }}</a>
         {% endfor %}

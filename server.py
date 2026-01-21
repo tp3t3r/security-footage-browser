@@ -43,6 +43,23 @@ def index():
     # Create camera lookup
     camera_map = {i: c for i, c in enumerate(data['cameras'])}
     
+    # Calculate metadata
+    cache_file = config.get('storage', 'cache_file')
+    cache_size = os.path.getsize(cache_file) if os.path.exists(cache_file) else 0
+    if cache_size < 1024:
+        cache_size_str = f'{cache_size} B'
+    elif cache_size < 1024**2:
+        cache_size_str = f'{cache_size/1024:.1f} KB'
+    else:
+        cache_size_str = f'{cache_size/1024**2:.1f} MB'
+    
+    # Get last recording per camera
+    last_recordings = {}
+    for cam_id, segs in data['segments'].items():
+        if segs:
+            latest = max(segs, key=lambda s: s['start_time'])
+            last_recordings[int(cam_id)] = datetime.fromtimestamp(latest['start_time']).strftime('%Y-%m-%d %H:%M:%S')
+    
     # Filter by camera if specified
     if camera is not None:
         segments = [s for s in segments if s['camera_id'] == camera]
@@ -75,6 +92,8 @@ def index():
                          days=sorted(by_day.items(), reverse=True),
                          cameras=cameras,
                          selected_camera=camera,
+                         cache_size=cache_size_str,
+                         last_recordings=last_recordings,
                          title=config.get('app', 'title'))
 
 @app.route('/video')
