@@ -96,8 +96,8 @@ class FootageParser:
                     if os.path.exists(video_file):
                         stat = os.stat(video_file)
                         if stat.st_size > 1024:
-                            # Validate offsets
-                            if start_offset >= end_offset or end_offset > stat.st_size:
+                            # Validate offsets - skip invalid ones (0,1 or out of bounds)
+                            if start_offset >= end_offset or end_offset > stat.st_size or (end_offset - start_offset) < 1024:
                                 continue
                             
                             segments.append({
