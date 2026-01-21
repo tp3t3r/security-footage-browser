@@ -64,6 +64,9 @@ class FootageParser:
             files_seen = set()
             
             for file_num in range(av_files):
+                if file_num in files_seen:
+                    continue
+                    
                 for seg_idx in range(256):
                     data = f.read(SEGMENT_LEN)
                     if len(data) < SEGMENT_LEN:
@@ -85,22 +88,24 @@ class FootageParser:
                     if end_time == 0:
                         continue
                     
-                    # Only add first valid segment per file
-                    if file_num not in files_seen:
-                        video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
-                        if os.path.exists(video_file):
-                            stat = os.stat(video_file)
-                            if stat.st_size > 1024:
-                                files_seen.add(file_num)
-                                segments.append({
-                                    'file': file_num,
-                                    'segment': 0,
-                                    'start_time': start_time,
-                                    'end_time': end_time,
-                                    'start_offset': 0,
-                                    'end_offset': stat.st_size
-                                })
-                                break
+                    # Check if video file exists and has content
+                    video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
+                    if os.path.exists(video_file):
+                        stat = os.stat(video_file)
+                        # Skip empty files and use actual file size
+                        if stat.st_size > 1024:
+                            files_seen.add(file_num)
+                            segments.append({
+                                'file': file_num,
+                                'segment': 0,
+                                'start_time': start_time,
+                                'end_time': end_time,
+                                'start_offset': 0,
+                                'end_offset': stat.st_size
+                            })
+                    # Break after first valid segment for this file
+                    files_seen.add(file_num)
+                    break
             return segments
 
 class IndexWatcher(FileSystemEventHandler):
