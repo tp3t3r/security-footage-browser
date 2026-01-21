@@ -59,55 +59,92 @@ class FootageParser:
             vals = struct.unpack('<QIIIII', header_data)
             av_files = vals[2]
             
-            # Skip to segment section
-            f.seek(HEADER_LEN + (av_files * FILE_LEN))
-            
             segments = []
+            files_processed = set()
             
+            # Process each video file
             for file_num in range(av_files):
-                for seg_idx in range(256):
-                    data = f.read(SEGMENT_LEN)
-                    if len(data) < SEGMENT_LEN:
-                        break
+                video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
+                if not os.path.exists(video_file):
+                    continue
+                
+                stat = os.stat(video_file)
+                if stat.st_size <= 1024:
+                    continue
+                
+                if file_num in files_processed:
+                    continue
+                files_processed.add(file_num)
+                
+                # Use ffprobe to detect scenes/segments
+                try:
+                    # Detect scene changes with ffmpeg
+                    cmd = [
+                        'ffmpeg', '-i', video_file,
+                        '-filter:v', 'select=gt(scene\\,0.3),showinfo',
+                        '-f', 'null', '-'
+                    ]
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
                     
-                    # Parse segment: type(1) status(1) res1(2) resolution(4) startTime(8) endTime(8) ...
-                    seg_type = data[0]
-                    if seg_type == 0:
-                        continue
+                    # Parse scene timestamps from stderr
+                    scene_times = [0.0]
+                    for line in result.stderr.split('\n'):
+                        if 'pts_time:' in line:
+                            try:
+                                pts = float(line.split('pts_time:')[1].split()[0])
+                                scene_times.append(pts)
+                            except:
+                                pass
                     
-                    # Extract timestamps and offsets
-                    start_time_64 = struct.unpack('<Q', data[8:16])[0]
-                    end_time_64 = struct.unpack('<Q', data[16:24])[0]
-                    start_offset = struct.unpack('<I', data[36:40])[0]
-                    end_offset = struct.unpack('<I', data[40:44])[0]
+                    # Get total duration
+                    dur_result = subprocess.run(
+                        ['ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                         '-of', 'default=noprint_wrappers=1:nokey=1', video_file],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    duration = float(dur_result.stdout.strip())
+                    scene_times.append(duration)
                     
-                    # Convert to 32-bit time_t (seconds since epoch)
-                    start_time = start_time_64 & 0xFFFFFFFF
-                    end_time = end_time_64 & 0xFFFFFFFF
-                    
-                    # Skip invalid timestamps
-                    if end_time == 0 or start_time == 0:
-                        continue
-                    if end_time < start_time:
-                        continue
-                    
-                    # Check if video file exists
-                    video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
-                    if os.path.exists(video_file):
-                        stat = os.stat(video_file)
-                        if stat.st_size > 1024:
-                            # Validate offsets - skip invalid ones (0,1 or out of bounds)
-                            if start_offset >= end_offset or end_offset > stat.st_size or (end_offset - start_offset) < 1024:
-                                continue
-                            
-                            segments.append({
-                                'file': file_num,
-                                'segment': seg_idx,
-                                'start_time': start_time,
-                                'end_time': end_time,
-                                'start_offset': start_offset,
-                                'end_offset': end_offset
-                            })
+                    # Create segments from scene changes
+                    base_time = int(stat.st_mtime)
+                    for i in range(len(scene_times) - 1):
+                        start_sec = scene_times[i]
+                        end_sec = scene_times[i + 1]
+                        
+                        # Skip very short segments (< 5 seconds)
+                        if (end_sec - start_sec) < 5:
+                            continue
+                        
+                        segments.append({
+                            'file': file_num,
+                            'segment': i,
+                            'start_time': base_time + int(start_sec),
+                            'end_time': base_time + int(end_sec),
+                            'start_offset': start_sec,  # Store as time offset for ffmpeg
+                            'end_offset': end_sec
+                        })
+                
+                except Exception as e:
+                    # Fallback: treat whole file as one segment
+                    try:
+                        dur_result = subprocess.run(
+                            ['ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                             '-of', 'default=noprint_wrappers=1:nokey=1', video_file],
+                            capture_output=True, text=True, timeout=5
+                        )
+                        duration = float(dur_result.stdout.strip())
+                        base_time = int(stat.st_mtime)
+                        
+                        segments.append({
+                            'file': file_num,
+                            'segment': 0,
+                            'start_time': base_time,
+                            'end_time': base_time + int(duration),
+                            'start_offset': 0,
+                            'end_offset': duration
+                        })
+                    except:
+                        pass
             return segments
 
 class IndexWatcher(FileSystemEventHandler):
