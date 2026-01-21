@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file, jsonify
+from flask import Flask, render_template, request, send_file, jsonify, Response
 import os
 import json
 import configparser
@@ -146,50 +146,27 @@ def video():
     
     # Extract segment if not cached
     if not os.path.exists(cached_file):
-        start_offset = segment['start_offset']  # Byte offset
+        start_offset = segment['start_offset']
         end_offset = segment['end_offset']
-        size = end_offset - start_offset
         
+        # Stream directly from file without temp extraction
         try:
-            # Extract raw bytes from offset range
-            temp_h264 = os.path.join(cache_dir, f'{cache_hash}.h264')
-            with open(video_file, 'rb') as f:
-                f.seek(start_offset)
-                with open(temp_h264, 'wb') as out:
-                    remaining = size
+            from flask import Response
+            def generate():
+                with open(video_file, 'rb') as f:
+                    f.seek(start_offset)
+                    remaining = end_offset - start_offset
                     while remaining > 0:
                         chunk_size = min(8192, remaining)
                         chunk = f.read(chunk_size)
                         if not chunk:
                             break
-                        out.write(chunk)
+                        yield chunk
                         remaining -= len(chunk)
             
-            # Remux to MP4 container
-            cmd = [
-                'ffmpeg', '-y',
-                '-i', temp_h264,
-                '-c:v', 'copy',
-                '-c:a', 'copy',
-                '-f', 'mp4',
-                '-movflags', 'frag_keyframe+empty_moov',
-                cached_file
-            ]
-            
-            subprocess.run(cmd, check=True, capture_output=True, timeout=60)
-            os.remove(temp_h264)
-            
-        except subprocess.CalledProcessError as e:
-            if os.path.exists(temp_h264):
-                os.remove(temp_h264)
-            return f"Extraction failed: {e.stderr.decode()}", 500
-        except subprocess.TimeoutExpired:
-            if os.path.exists(temp_h264):
-                os.remove(temp_h264)
-            return "Extraction timeout", 500
+            return Response(generate(), mimetype='video/mp4', 
+                          headers={'Content-Length': str(end_offset - start_offset)})
         except Exception as e:
-            if os.path.exists(temp_h264):
-                os.remove(temp_h264)
             return f"Error: {str(e)}", 500
     
     return send_file(cached_file, mimetype='video/mp4', as_attachment=False)
