@@ -33,9 +33,8 @@ class FootageParser:
     
     def _parse_info_bin(self, info_file):
         with open(info_file, 'rb') as f:
-            data = f.read(72)  # NASINFO_LEN
-            unpacked = struct.unpack('<48s12s2sIII', data)
-            return unpacked[5]  # DataDirs count
+            f.seek(64)
+            return struct.unpack('<I', f.read(4))[0]
     
     def parse_all(self):
         segments = []
