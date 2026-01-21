@@ -63,12 +63,8 @@ class FootageParser:
             f.seek(HEADER_LEN + (av_files * FILE_LEN))
             
             segments = []
-            files_seen = set()
             
             for file_num in range(av_files):
-                if file_num in files_seen:
-                    continue
-                    
                 for seg_idx in range(256):
                     data = f.read(SEGMENT_LEN)
                     if len(data) < SEGMENT_LEN:
@@ -79,9 +75,11 @@ class FootageParser:
                     if seg_type == 0:
                         continue
                     
-                    # Extract 64-bit timestamps and convert to 32-bit
+                    # Extract timestamps and offsets
                     start_time_64 = struct.unpack('<Q', data[8:16])[0]
                     end_time_64 = struct.unpack('<Q', data[16:24])[0]
+                    start_offset = struct.unpack('<I', data[36:40])[0]
+                    end_offset = struct.unpack('<I', data[40:44])[0]
                     
                     # Convert to 32-bit time_t (seconds since epoch)
                     start_time = start_time_64 & 0xFFFFFFFF
@@ -93,40 +91,23 @@ class FootageParser:
                     if end_time < start_time:
                         continue
                     
-                    # Check if video file exists and has content
+                    # Check if video file exists
                     video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
                     if os.path.exists(video_file):
                         stat = os.stat(video_file)
-                        # Skip empty files
                         if stat.st_size > 1024:
-                            # Get actual duration from video file
-                            try:
-                                result = subprocess.run(
-                                    ['ffprobe', '-v', 'quiet', '-show_entries', 'format=duration', 
-                                     '-of', 'default=noprint_wrappers=1:nokey=1', video_file],
-                                    capture_output=True, text=True, timeout=5
-                                )
-                                duration = float(result.stdout.strip())
-                                # Use file modification time as start time
-                                actual_start = int(stat.st_mtime)
-                                actual_end = actual_start + int(duration)
-                            except:
-                                # Fallback to index timestamps if ffprobe fails
-                                actual_start = start_time
-                                actual_end = end_time
+                            # Validate offsets
+                            if start_offset >= end_offset or end_offset > stat.st_size:
+                                continue
                             
-                            files_seen.add(file_num)
                             segments.append({
                                 'file': file_num,
-                                'segment': 0,
-                                'start_time': actual_start,
-                                'end_time': actual_end,
-                                'start_offset': 0,
-                                'end_offset': stat.st_size
+                                'segment': seg_idx,
+                                'start_time': start_time,
+                                'end_time': end_time,
+                                'start_offset': start_offset,
+                                'end_offset': end_offset
                             })
-                    # Break after first valid segment for this file
-                    files_seen.add(file_num)
-                    break
             return segments
 
 class IndexWatcher(FileSystemEventHandler):
