@@ -53,10 +53,10 @@ class FootageParser:
     
     def _parse_index(self, datadir):
         with open(datadir['index'], 'rb') as f:
-            # Read header
+            # Read header - match PHP: Q1modifyTimes/I1version/I1avFiles/...
             f.seek(0)
             header_data = f.read(HEADER_LEN)
-            av_files = struct.unpack('<xxIxxxxxx', header_data[:16])[0]
+            av_files = struct.unpack('<xxIxx', header_data[8:16])[0]
             
             # Skip to segment section
             f.seek(HEADER_LEN + (av_files * FILE_LEN))
