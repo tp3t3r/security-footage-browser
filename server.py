@@ -32,11 +32,12 @@ def index():
     
     by_day = {}
     for seg in segments:
-        day = datetime.fromtimestamp(seg['start_time']).strftime('%Y-%m-%d')
+        # Use file modification time as fallback since segment timestamps are unreliable
+        day = datetime.fromtimestamp(seg['start_time']).strftime('%Y-%m-%d') if seg['start_time'] > 1000000000 else 'Unknown'
         if day not in by_day:
             by_day[day] = []
-        seg['start_time_str'] = datetime.fromtimestamp(seg['start_time']).strftime('%H:%M:%S')
-        seg['end_time_str'] = datetime.fromtimestamp(seg['end_time']).strftime('%H:%M:%S')
+        seg['start_time_str'] = datetime.fromtimestamp(seg['start_time']).strftime('%Y-%m-%d %H:%M:%S') if seg['start_time'] > 1000000000 else 'N/A'
+        seg['end_time_str'] = ''
         by_day[day].append(seg)
     
     return render_template('index.html', 
@@ -49,12 +50,9 @@ def index():
 def video():
     datadir = request.args.get('datadir', type=int)
     file_num = request.args.get('file', type=int)
-    start = request.args.get('start', type=int)
-    end = request.args.get('end', type=int)
     
     segments = load_segments()
-    seg = next((s for s in segments if s['datadir'] == datadir and s['file'] == file_num 
-                and s['start_offset'] == start), None)
+    seg = next((s for s in segments if s['datadir'] == datadir and s['file'] == file_num), None)
     
     if not seg:
         return "Segment not found", 404
@@ -64,28 +62,7 @@ def video():
     if not os.path.exists(video_file):
         return "Video file not found", 404
     
-    # Create cache filename
-    cache_dir = '/opt/footage-browser/cache'
-    os.makedirs(cache_dir, exist_ok=True)
-    cache_file = os.path.join(cache_dir, f'{datadir}_{file_num}_{start}_{end}.mp4')
-    
-    # Extract and convert segment if not cached
-    if not os.path.exists(cache_file):
-        import subprocess
-        h264_file = cache_file + '.h264'
-        
-        # Extract raw H.264 segment
-        with open(video_file, 'rb') as f:
-            f.seek(start)
-            with open(h264_file, 'wb') as out:
-                out.write(f.read(end - start))
-        
-        # Convert to MP4 container
-        subprocess.run(['ffmpeg', '-i', h264_file, '-c:v', 'copy', '-c:a', 'none', cache_file],
-                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        os.remove(h264_file)
-    
-    return send_file(cache_file, mimetype='video/mp4')
+    return send_file(video_file, mimetype='video/mp4')
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
