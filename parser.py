@@ -86,11 +86,15 @@ class IndexWatcher(FileSystemEventHandler):
 def run_parser(datadirs, cache_file, interval):
     parser = FootageParser(datadirs, cache_file)
     
+    if not parser.datadirs:
+        print("No valid datadirs found. Exiting.")
+        return
+    
     observer = Observer()
     handler = IndexWatcher(parser)
     
-    for path in datadirs:
-        observer.schedule(handler, path, recursive=False)
+    for datadir in parser.datadirs:
+        observer.schedule(handler, datadir['path'], recursive=False)
     
     observer.start()
     
