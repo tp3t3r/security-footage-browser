@@ -52,48 +52,23 @@ class FootageParser:
         return segments_by_camera
     
     def _parse_index(self, datadir):
-        with open(datadir['index'], 'rb') as f:
-            # Read header - PHP: Q1modifyTimes/I1version/I1avFiles/I1nextFileRecNo/I1lastFileRecNo
-            header_data = f.read(28)
-            vals = struct.unpack('<QIIIII', header_data)
-            av_files = vals[2]
-            
-            # Skip to segment section
-            f.seek(HEADER_LEN + (av_files * FILE_LEN))
-            
-            segments = []
-            for file_num in range(av_files):
-                for seg_idx in range(256):
-                    data = f.read(SEGMENT_LEN)
-                    if len(data) < SEGMENT_LEN:
-                        break
-                    
-                    # Parse segment structure
-                    seg_type = data[0]
-                    if seg_type == 0:
-                        continue
-                    
-                    # Extract timestamps and offsets (matching PHP unpack)
-                    start_time = struct.unpack('<Q', data[8:16])[0] & 0xFFFFFFFF
-                    end_time = struct.unpack('<Q', data[16:24])[0] & 0xFFFFFFFF
-                    
-                    if end_time == 0:
-                        continue
-                    
-                    start_offset = struct.unpack('<I', data[36:40])[0]
-                    end_offset = struct.unpack('<I', data[40:44])[0]
-                    
-                    video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
-                    if os.path.exists(video_file):
-                        segments.append({
-                            'file': file_num,
-                            'segment': seg_idx,
-                            'start_time': start_time,
-                            'end_time': end_time,
-                            'start_offset': start_offset,
-                            'end_offset': end_offset
-                        })
-            return segments
+        # Simplified: just list all video files that exist
+        segments = []
+        for file_num in range(1000):  # Check up to 1000 files
+            video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
+            if os.path.exists(video_file):
+                stat = os.stat(video_file)
+                # Only include files with actual content (>1KB)
+                if stat.st_size > 1024:
+                    segments.append({
+                        'file': file_num,
+                        'segment': 0,
+                        'start_time': int(stat.st_mtime),
+                        'end_time': 0,
+                        'start_offset': 0,
+                        'end_offset': stat.st_size
+                    })
+        return segments
 
 class IndexWatcher(FileSystemEventHandler):
     def __init__(self, parser):

@@ -100,15 +100,9 @@ def index():
 def video():
     camera_id = request.args.get('camera_id', type=int)
     file_num = request.args.get('file', type=int)
-    segment = request.args.get('segment', type=int)
     
     data = load_segments()
-    camera_map = {c['id']: c for c in data['cameras']}
-    
-    seg = next((s for s in data['segments'] if s['camera_id'] == camera_id and s['file'] == file_num and s['segment'] == segment), None)
-    
-    if not seg:
-        return "Segment not found", 404
+    camera_map = {i: c for i, c in enumerate(data['cameras'])}
     
     cam = camera_map.get(camera_id)
     if not cam:
@@ -119,13 +113,7 @@ def video():
     if not os.path.exists(video_file):
         return "Video file not found", 404
     
-    # Serve only the segment portion
-    with open(video_file, 'rb') as f:
-        f.seek(seg['start_offset'])
-        data = f.read(seg['end_offset'] - seg['start_offset'])
-    
-    from flask import Response
-    return Response(data, mimetype='video/mp4')
+    return send_file(video_file, mimetype='video/mp4', as_attachment=False)
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
