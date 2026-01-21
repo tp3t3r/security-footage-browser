@@ -139,24 +139,48 @@ def video():
         end_offset = segment['end_offset']
         size = end_offset - start_offset
         
-        # Use ffmpeg to extract and remux the segment
-        cmd = [
-            'ffmpeg', '-y',
-            '-ss', '0',
-            '-i', f'file:{video_file}',
-            '-map', '0:v:0',
-            '-c', 'copy',
-            '-f', 'mp4',
-            '-movflags', 'frag_keyframe+empty_moov',
-            cached_file
-        ]
+        # Extract raw H.264 segment and remux with ffmpeg
+        temp_h264 = os.path.join(cache_dir, f'{cache_hash}.h264')
         
         try:
+            # Extract raw bytes from offset range
+            with open(video_file, 'rb') as f:
+                f.seek(start_offset)
+                with open(temp_h264, 'wb') as out:
+                    remaining = size
+                    while remaining > 0:
+                        chunk_size = min(8192, remaining)
+                        chunk = f.read(chunk_size)
+                        if not chunk:
+                            break
+                        out.write(chunk)
+                        remaining -= len(chunk)
+            
+            # Remux to MP4 container
+            cmd = [
+                'ffmpeg', '-y',
+                '-i', temp_h264,
+                '-c:v', 'copy',
+                '-f', 'mp4',
+                '-movflags', 'frag_keyframe+empty_moov',
+                cached_file
+            ]
+            
             subprocess.run(cmd, check=True, capture_output=True, timeout=30)
+            os.remove(temp_h264)
+            
         except subprocess.CalledProcessError as e:
+            if os.path.exists(temp_h264):
+                os.remove(temp_h264)
             return f"Extraction failed: {e.stderr.decode()}", 500
         except subprocess.TimeoutExpired:
+            if os.path.exists(temp_h264):
+                os.remove(temp_h264)
             return "Extraction timeout", 500
+        except Exception as e:
+            if os.path.exists(temp_h264):
+                os.remove(temp_h264)
+            return f"Error: {str(e)}", 500
     
     return send_file(cached_file, mimetype='video/mp4', as_attachment=False)
 
