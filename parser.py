@@ -60,7 +60,7 @@ class FootageParser:
                     if len(data) < SEGMENT_LEN:
                         break
                     
-                    seg = struct.unpack('<BBxx4sQQQIIIIxxxx4s8s16s16s16s16s', data)
+                    seg = struct.unpack('<BB2x4sQQQIIII4x4s8s16s16s16s16s', data)
                     if seg[0] != 0 and seg[6] != 0:
                         segments.append({
                             'datadir': datadir['num'],
