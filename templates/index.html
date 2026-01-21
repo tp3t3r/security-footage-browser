@@ -19,7 +19,7 @@
         <h2>{{ day }} ({{ segments|length }} recordings)</h2>
         {% for seg in segments %}
         <div class="segment">
-            <p>File: hiv{{seg.file|string|zfill(5)}}.mp4 - {{ seg.start_time_str }}</p>
+            <p>File: hiv{{ '%05d'|format(seg.file) }}.mp4 - {{ seg.start_time_str }}</p>
             <video controls>
                 <source src="/video?datadir={{ seg.datadir }}&file={{ seg.file }}" type="video/mp4">
             </video>
