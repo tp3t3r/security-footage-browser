@@ -1,0 +1,13 @@
+[Unit]
+Description=Security Footage Parser
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/footage-browser/parser.py
+WorkingDirectory=/opt/footage-browser
+Restart=always
+User=footage
+
+[Install]
+WantedBy=multi-user.target

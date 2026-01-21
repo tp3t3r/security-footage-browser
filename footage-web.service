@@ -1,0 +1,13 @@
+[Unit]
+Description=Security Footage Web Server
+After=network.target footage-parser.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/footage-browser/server.py
+WorkingDirectory=/opt/footage-browser
+Restart=always
+User=footage
+
+[Install]
+WantedBy=multi-user.target
