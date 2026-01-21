@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ title }}</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        .day { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+        .segment { margin: 10px 0; }
+        video { max-width: 640px; }
+    </style>
+</head>
+<body>
+    <h1>{{ title }}</h1>
+    {% for day, segments in days %}
+    <div class="day">
+        <h2>{{ day }} ({{ segments|length }} recordings)</h2>
+        {% for seg in segments %}
+        <div class="segment">
+            <p>{{ seg.start_time }} - {{ seg.end_time }}</p>
+            <video controls>
+                <source src="/video?datadir={{ seg.datadir }}&file={{ seg.file }}&start={{ seg.start_offset }}&end={{ seg.end_offset }}" type="video/mp4">
+            </video>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</body>
+</html>
