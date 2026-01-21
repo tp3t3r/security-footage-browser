@@ -128,9 +128,6 @@ class FootageParser:
                 except:
                     pass
             return segments
-                    except:
-                        pass
-            return segments
 
 class IndexWatcher(FileSystemEventHandler):
     def __init__(self, parser):
