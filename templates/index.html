@@ -3,12 +3,31 @@
 <head>
     <title>{{ title }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+        // Auto-refresh every 30 seconds
+        let refreshInterval = setInterval(() => {
+            location.reload();
+        }, 30000);
+        
+        // Stop auto-refresh when video is playing
+        document.addEventListener('DOMContentLoaded', () => {
+            const videos = document.querySelectorAll('video');
+            videos.forEach(video => {
+                video.addEventListener('play', () => {
+                    clearInterval(refreshInterval);
+                });
+                video.addEventListener('pause', () => {
+                    refreshInterval = setInterval(() => location.reload(), 30000);
+                });
+            });
+        });
+    </script>
 </head>
 <body>
     <h1>{{ title }}</h1>
     
     <div class="metadata">
-        <p>Cache: {{ cache_size }}</p>
+        <p>Cache: {{ cache_size }} | <span id="last-update">Last update: just now</span></p>
         {% for cam in cameras %}
         <p>{{ cam.name }} - Last recording: {{ last_recordings.get(cam.id, 'N/A') }}</p>
         {% endfor %}
