@@ -14,21 +14,20 @@ SEGMENT_LEN = 128
 class FootageParser:
     def __init__(self, datadirs, metacache_file, cameras):
         self.datadirs = []
-        for i, path in enumerate(datadirs):
-            cam_name = cameras[i]['name'] if i < len(cameras) else f"Camera {i}"
-            # Check if path contains info.bin (NAS structure)
-            info_file = os.path.join(path, 'info.bin')
-            if os.path.exists(info_file):
-                # Use datadir0 (main stream)
-                datadir_path = os.path.join(path, 'datadir0')
-                index_file = os.path.join(datadir_path, 'index00.bin')
-                if os.path.exists(index_file):
-                    self.datadirs.append({'path': datadir_path, 'index': index_file, 'num': len(self.datadirs), 'name': cam_name})
-            else:
-                # Direct datadir path
-                index_file = os.path.join(path, 'index00.bin')
-                if os.path.exists(index_file):
-                    self.datadirs.append({'path': path, 'index': index_file, 'num': i, 'name': cam_name})
+        for i, cam_config in enumerate(cameras):
+            mainstream_path = cam_config['path']
+            substream_path = cam_config.get('substream_path', mainstream_path)
+            
+            # Use substream for parsing, mainstream for serving
+            index_file = os.path.join(substream_path, 'index00.bin')
+            if os.path.exists(index_file):
+                self.datadirs.append({
+                    'path': mainstream_path,  # For serving videos
+                    'substream_path': substream_path,  # For parsing
+                    'index': index_file,
+                    'num': i,
+                    'name': cam_config['name']
+                })
         self.metacache_file = metacache_file
     
     def _parse_info_bin(self, info_file):
@@ -62,13 +61,17 @@ class FootageParser:
             segments = []
             files_processed = set()
             
-            # Process each video file
+            # Process each video file from substream
             for file_num in range(av_files):
-                video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
-                if not os.path.exists(video_file):
+                # Analyze substream (smaller, faster)
+                substream_file = os.path.join(datadir['substream_path'], f'hiv{file_num:05d}.mp4')
+                # Serve from mainstream (full quality)
+                mainstream_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
+                
+                if not os.path.exists(substream_file) or not os.path.exists(mainstream_file):
                     continue
                 
-                stat = os.stat(video_file)
+                stat = os.stat(substream_file)
                 if stat.st_size <= 1024:
                     continue
                 
@@ -76,11 +79,11 @@ class FootageParser:
                     continue
                 files_processed.add(file_num)
                 
-                # Use ffprobe to detect scenes/segments
+                # Use ffprobe to detect scenes/segments on substream
                 try:
-                    # Detect scene changes with ffmpeg
+                    # Detect scene changes with ffmpeg on substream
                     cmd = [
-                        'ffmpeg', '-i', video_file,
+                        'ffmpeg', '-i', substream_file,
                         '-filter:v', 'select=gt(scene\\,0.3),showinfo',
                         '-f', 'null', '-'
                     ]
@@ -96,17 +99,19 @@ class FootageParser:
                             except:
                                 pass
                     
-                    # Get total duration
+                    # Get total duration from substream
                     dur_result = subprocess.run(
                         ['ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
-                         '-of', 'default=noprint_wrappers=1:nokey=1', video_file],
+                         '-of', 'default=noprint_wrappers=1:nokey=1', substream_file],
                         capture_output=True, text=True, timeout=5
                     )
                     duration = float(dur_result.stdout.strip())
                     scene_times.append(duration)
                     
                     # Create segments from scene changes
-                    base_time = int(stat.st_mtime)
+                    # Use mainstream file mtime for base timestamp
+                    mainstream_stat = os.stat(mainstream_file)
+                    base_time = int(mainstream_stat.st_mtime)
                     for i in range(len(scene_times) - 1):
                         start_sec = scene_times[i]
                         end_sec = scene_times[i + 1]
@@ -129,11 +134,12 @@ class FootageParser:
                     try:
                         dur_result = subprocess.run(
                             ['ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
-                             '-of', 'default=noprint_wrappers=1:nokey=1', video_file],
+                             '-of', 'default=noprint_wrappers=1:nokey=1', substream_file],
                             capture_output=True, text=True, timeout=5
                         )
                         duration = float(dur_result.stdout.strip())
-                        base_time = int(stat.st_mtime)
+                        mainstream_stat = os.stat(mainstream_file)
+                        base_time = int(mainstream_stat.st_mtime)
                         
                         segments.append({
                             'file': file_num,
@@ -167,7 +173,7 @@ def run_parser(datadirs, metacache_file, interval, cameras):
     handler = IndexWatcher(parser)
     
     for datadir in parser.datadirs:
-        observer.schedule(handler, datadir['path'], recursive=False)
+        observer.schedule(handler, datadir['substream_path'], recursive=False)
     
     observer.start()
     
@@ -192,11 +198,11 @@ if __name__ == '__main__':
         if section.startswith('camera.'):
             cameras.append({
                 'name': config.get(section, 'name'),
-                'path': config.get(section, 'path')
+                'path': config.get(section, 'path'),
+                'substream_path': config.get(section, 'substream_path', fallback=config.get(section, 'path'))
             })
     
-    datadirs = [cam['path'] for cam in cameras]
     metacache_file = config.get('storage', 'metacache_file')
     interval = config.getint('parser', 'index_parse_timeout')
     
-    run_parser(datadirs, metacache_file, interval, cameras)
+    run_parser(None, metacache_file, interval, cameras)
