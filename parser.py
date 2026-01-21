@@ -47,24 +47,49 @@ class FootageParser:
     
     def _parse_index(self, datadir):
         with open(datadir['index'], 'rb') as f:
-            header = struct.unpack('<QIIIII1172s76sI', f.read(HEADER_LEN))
-            av_files = header[2]
+            # Read header
+            f.seek(0)
+            header_data = f.read(HEADER_LEN)
+            av_files = struct.unpack('<xxIxxxxxx', header_data[:16])[0]
+            
+            # Skip to segment section
+            f.seek(HEADER_LEN + (av_files * FILE_LEN))
             
             segments = []
             for file_num in range(av_files):
-                video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
-                if os.path.exists(video_file):
-                    stat = os.stat(video_file)
-                    segments.append({
-                        'datadir': datadir['num'],
-                        'path': datadir['path'],
-                        'name': datadir.get('name', f"Camera {datadir['num']}"),
-                        'file': file_num,
-                        'start_time': int(stat.st_mtime),
-                        'end_time': 0,
-                        'start_offset': 0,
-                        'end_offset': stat.st_size
-                    })
+                for seg_idx in range(256):
+                    data = f.read(SEGMENT_LEN)
+                    if len(data) < SEGMENT_LEN:
+                        break
+                    
+                    # Parse segment structure
+                    seg_type = data[0]
+                    if seg_type == 0:
+                        continue
+                    
+                    # Extract timestamps and offsets (matching PHP unpack)
+                    start_time = struct.unpack('<Q', data[8:16])[0] & 0xFFFFFFFF
+                    end_time = struct.unpack('<Q', data[16:24])[0] & 0xFFFFFFFF
+                    
+                    if end_time == 0:
+                        continue
+                    
+                    start_offset = struct.unpack('<I', data[36:40])[0]
+                    end_offset = struct.unpack('<I', data[40:44])[0]
+                    
+                    video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
+                    if os.path.exists(video_file):
+                        segments.append({
+                            'datadir': datadir['num'],
+                            'path': datadir['path'],
+                            'name': datadir.get('name', f"Camera {datadir['num']}"),
+                            'file': file_num,
+                            'segment': seg_idx,
+                            'start_time': start_time,
+                            'end_time': end_time,
+                            'start_offset': start_offset,
+                            'end_offset': end_offset
+                        })
             return segments
 
 class IndexWatcher(FileSystemEventHandler):

@@ -43,20 +43,16 @@ def index():
         seg['start_time_str'] = datetime.fromtimestamp(seg['start_time']).strftime('%Y-%m-%d %H:%M:%S') if seg['start_time'] > 1000000000 else 'N/A'
         seg['end_time_str'] = ''
         
-        # Get file size
-        video_file = os.path.join(seg['path'], f'hiv{seg["file"]:05d}.mp4')
-        if os.path.exists(video_file):
-            size_bytes = os.path.getsize(video_file)
-            if size_bytes < 1024:
-                seg['size'] = f'{size_bytes} B'
-            elif size_bytes < 1024**2:
-                seg['size'] = f'{size_bytes/1024:.1f} KB'
-            elif size_bytes < 1024**3:
-                seg['size'] = f'{size_bytes/1024**2:.1f} MB'
-            else:
-                seg['size'] = f'{size_bytes/1024**3:.1f} GB'
+        # Get file size from segment offsets
+        seg['size_bytes'] = seg['end_offset'] - seg['start_offset']
+        if seg['size_bytes'] < 1024:
+            seg['size'] = f'{seg["size_bytes"]} B'
+        elif seg['size_bytes'] < 1024**2:
+            seg['size'] = f'{seg["size_bytes"]/1024:.1f} KB'
+        elif seg['size_bytes'] < 1024**3:
+            seg['size'] = f'{seg["size_bytes"]/1024**2:.1f} MB'
         else:
-            seg['size'] = 'N/A'
+            seg['size'] = f'{seg["size_bytes"]/1024**3:.1f} GB'
         
         by_day[day].append(seg)
     
@@ -70,9 +66,10 @@ def index():
 def video():
     datadir = request.args.get('datadir', type=int)
     file_num = request.args.get('file', type=int)
+    segment = request.args.get('segment', type=int)
     
     segments = load_segments()
-    seg = next((s for s in segments if s['datadir'] == datadir and s['file'] == file_num), None)
+    seg = next((s for s in segments if s['datadir'] == datadir and s['file'] == file_num and s['segment'] == segment), None)
     
     if not seg:
         return "Segment not found", 404
@@ -82,7 +79,13 @@ def video():
     if not os.path.exists(video_file):
         return "Video file not found", 404
     
-    return send_file(video_file, mimetype='video/mp4')
+    # Serve only the segment portion
+    with open(video_file, 'rb') as f:
+        f.seek(seg['start_offset'])
+        data = f.read(seg['end_offset'] - seg['start_offset'])
+    
+    from flask import Response
+    return Response(data, mimetype='video/mp4')
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
