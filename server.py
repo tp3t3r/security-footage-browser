@@ -26,11 +26,11 @@ def index():
     start = int((datetime.now() - timedelta(days=days_param)).timestamp())
     
     data = load_segments()
-    cameras = data['cameras']
+    cameras = [{'id': i, 'name': c['name']} for i, c in enumerate(data['cameras'])]
     segments = [s for s in data['segments'] if start < s['start_time'] < end]
     
     # Create camera lookup
-    camera_map = {c['id']: c for c in cameras}
+    camera_map = {i: c for i, c in enumerate(data['cameras'])}
     
     # Filter by camera if specified
     if camera is not None:

@@ -42,7 +42,7 @@ class FootageParser:
         
         # Structure: cameras list + segments with camera references
         cache_data = {
-            'cameras': [{'id': d['num'], 'name': d['name'], 'path': d['path']} for d in self.datadirs],
+            'cameras': [{'name': d['name'], 'path': d['path']} for d in self.datadirs],
             'segments': segments
         }
         
