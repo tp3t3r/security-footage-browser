@@ -11,9 +11,10 @@ FILE_LEN = 80
 SEGMENT_LEN = 128
 
 class FootageParser:
-    def __init__(self, datadirs, cache_file):
+    def __init__(self, datadirs, cache_file, cameras):
         self.datadirs = []
         for i, path in enumerate(datadirs):
+            cam_name = cameras[i]['name'] if i < len(cameras) else f"Camera {i}"
             # Check if path contains info.bin (NAS structure)
             info_file = os.path.join(path, 'info.bin')
             if os.path.exists(info_file):
@@ -21,12 +22,12 @@ class FootageParser:
                 datadir_path = os.path.join(path, 'datadir1')
                 index_file = os.path.join(datadir_path, 'index00.bin')
                 if os.path.exists(index_file):
-                    self.datadirs.append({'path': datadir_path, 'index': index_file, 'num': len(self.datadirs), 'name': os.path.basename(path)})
+                    self.datadirs.append({'path': datadir_path, 'index': index_file, 'num': len(self.datadirs), 'name': cam_name})
             else:
                 # Direct datadir path
                 index_file = os.path.join(path, 'index00.bin')
                 if os.path.exists(index_file):
-                    self.datadirs.append({'path': path, 'index': index_file, 'num': i})
+                    self.datadirs.append({'path': path, 'index': index_file, 'num': i, 'name': cam_name})
         self.cache_file = cache_file
     
     def _parse_info_bin(self, info_file):
@@ -75,8 +76,8 @@ class IndexWatcher(FileSystemEventHandler):
             print(f"Index updated: {event.src_path}")
             self.parser.parse_all()
 
-def run_parser(datadirs, cache_file, interval):
-    parser = FootageParser(datadirs, cache_file)
+def run_parser(datadirs, cache_file, interval, cameras):
+    parser = FootageParser(datadirs, cache_file, cameras)
     
     if not parser.datadirs:
         print("No valid datadirs found. Exiting.")
@@ -105,8 +106,17 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read('/etc/footage-browser/app.conf')
     
-    datadirs = config.get('storage', 'datadir_paths').split(',')
+    # Parse camera sections
+    cameras = []
+    for section in config.sections():
+        if section.startswith('camera.'):
+            cameras.append({
+                'name': config.get(section, 'name'),
+                'path': config.get(section, 'path')
+            })
+    
+    datadirs = [cam['path'] for cam in cameras]
     cache_file = config.get('storage', 'cache_file')
     interval = config.getint('parser', 'interval')
     
-    run_parser(datadirs, cache_file, interval)
+    run_parser(datadirs, cache_file, interval, cameras)
