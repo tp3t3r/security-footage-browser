@@ -53,9 +53,9 @@ class FootageParser:
     
     def _parse_index(self, datadir):
         with open(datadir['index'], 'rb') as f:
-            # Read header
-            header_data = f.read(HEADER_LEN)
-            av_files = struct.unpack('<xxIxx', header_data[8:16])[0]
+            # Read header - matches hiktools struct FILE_IDX_HEADER
+            header_data = f.read(28)
+            modify_times, version, av_files, next_rec, last_rec = struct.unpack('<QIIIII', header_data)
             
             # Skip to segment section
             f.seek(HEADER_LEN + (av_files * FILE_LEN))
