@@ -4,20 +4,52 @@
     <title>{{ title }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script>
-        // Auto-refresh every 30 seconds
-        let refreshInterval = setInterval(() => {
-            location.reload();
-        }, 30000);
+        let refreshInterval = null;
         
-        // Stop auto-refresh when video is playing
+        // Check progress and update UI
+        function checkProgress() {
+            fetch('/progress')
+                .then(r => r.json())
+                .then(data => {
+                    const progressBar = document.getElementById('progress-bar');
+                    const progressText = document.getElementById('progress-text');
+                    
+                    if (data.done) {
+                        progressBar.style.display = 'none';
+                        if (!refreshInterval) {
+                            refreshInterval = setInterval(() => location.reload(), 30000);
+                        }
+                    } else {
+                        progressBar.style.display = 'block';
+                        const percent = data.total_files > 0 
+                            ? Math.round((data.files_done / data.total_files) * 100)
+                            : 0;
+                        progressBar.querySelector('.progress-fill').style.width = percent + '%';
+                        progressText.textContent = `Building cache: Camera ${data.camera + 1}/${data.total_cameras}, File ${data.files_done}/${data.total_files} (${percent}%)`;
+                        
+                        // Check again in 5 seconds
+                        setTimeout(checkProgress, 5000);
+                    }
+                });
+        }
+        
+        // Start checking on load
         document.addEventListener('DOMContentLoaded', () => {
+            checkProgress();
+            
+            // Stop auto-refresh when video is playing
             const videos = document.querySelectorAll('video');
             videos.forEach(video => {
                 video.addEventListener('play', () => {
-                    clearInterval(refreshInterval);
+                    if (refreshInterval) {
+                        clearInterval(refreshInterval);
+                        refreshInterval = null;
+                    }
                 });
                 video.addEventListener('pause', () => {
-                    refreshInterval = setInterval(() => location.reload(), 30000);
+                    if (!refreshInterval) {
+                        refreshInterval = setInterval(() => location.reload(), 30000);
+                    }
                 });
             });
         });
@@ -25,6 +57,11 @@
 </head>
 <body>
     <h1>{{ title }}</h1>
+    
+    <div id="progress-bar" class="progress-bar" style="display: none;">
+        <div class="progress-fill"></div>
+    </div>
+    <p id="progress-text"></p>
     
     <div class="metadata">
         <p>Cache: {{ cache_size }} | <span id="last-update">Last update: just now</span></p>

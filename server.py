@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, jsonify
 import os
 import json
 import configparser
@@ -22,6 +22,17 @@ def load_segments():
                 return {'cameras': data.get('cameras', []), 'segments': {}}
             return data
     return {'cameras': [], 'segments': {}}
+
+@app.route('/progress')
+def progress():
+    metacache_file = config.get('storage', 'metacache_file')
+    progress_file = metacache_file.replace('.json', '.progress')
+    
+    if os.path.exists(progress_file):
+        with open(progress_file, 'r') as f:
+            return jsonify(json.load(f))
+    else:
+        return jsonify({'done': True})
 
 @app.route('/')
 def index():

@@ -37,9 +37,13 @@ class FootageParser:
     
     def parse_all(self):
         segments_by_camera = {}
-        for datadir in self.datadirs:
+        
+        # Write initial progress
+        self._write_progress(0, len(self.datadirs), 0, 0)
+        
+        for idx, datadir in enumerate(self.datadirs):
             cam_id = str(datadir['num'])
-            segments_by_camera[cam_id] = self._parse_index(datadir)
+            segments_by_camera[cam_id] = self._parse_index(datadir, idx)
         
         cache_data = {
             'cameras': [{'name': d['name'], 'path': d['path']} for d in self.datadirs],
@@ -49,9 +53,26 @@ class FootageParser:
         with open(self.metacache_file, 'w') as f:
             json.dump(cache_data, f)
         
+        # Clear progress file
+        progress_file = self.metacache_file.replace('.json', '.progress')
+        if os.path.exists(progress_file):
+            os.remove(progress_file)
+        
         return segments_by_camera
     
-    def _parse_index(self, datadir):
+    def _write_progress(self, camera_idx, total_cameras, files_done, total_files):
+        progress_file = self.metacache_file.replace('.json', '.progress')
+        progress = {
+            'camera': camera_idx,
+            'total_cameras': total_cameras,
+            'files_done': files_done,
+            'total_files': total_files,
+            'timestamp': time.time()
+        }
+        with open(progress_file, 'w') as f:
+            json.dump(progress, f)
+    
+    def _parse_index(self, datadir, camera_idx):
         with open(datadir['index'], 'rb') as f:
             # Read header - matches hiktools struct FILE_IDX_HEADER
             header_data = f.read(28)
@@ -61,8 +82,14 @@ class FootageParser:
             segments = []
             files_processed = set()
             
+            # Update progress with total files
+            self._write_progress(camera_idx, len(self.datadirs), 0, av_files)
+            
             # Process each video file from substream
             for file_num in range(av_files):
+                # Update progress
+                self._write_progress(camera_idx, len(self.datadirs), file_num, av_files)
+                
                 # Analyze substream (smaller, faster)
                 substream_file = os.path.join(datadir['substream_path'], f'hiv{file_num:05d}.mp4')
                 # Serve from mainstream (full quality)
