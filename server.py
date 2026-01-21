@@ -54,7 +54,7 @@ def video():
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
-    config.read('config/app.conf')
+    config.read('/etc/footage-browser/app.conf')
     
     app.run(host=config.get('app', 'host'), 
             port=config.getint('app', 'port'))

@@ -110,7 +110,7 @@ if __name__ == '__main__':
     import configparser
     
     config = configparser.ConfigParser()
-    config.read('config/app.conf')
+    config.read('/etc/footage-browser/app.conf')
     
     datadirs = config.get('storage', 'datadir_paths').split(',')
     cache_file = config.get('storage', 'cache_file')
