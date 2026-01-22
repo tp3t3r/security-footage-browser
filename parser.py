@@ -6,6 +6,7 @@ import subprocess
 from datetime import datetime
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from mp4_parser import MP4Parser
 
 HEADER_LEN = 1280
 FILE_LEN = 80
@@ -99,6 +100,13 @@ class FootageParser:
                     f.seek(256 * SEGMENT_LEN, 1)
                     continue
                 
+                # Parse MP4 to get keyframe positions
+                try:
+                    mp4 = MP4Parser(video_file)
+                    keyframes = mp4.parse()
+                except:
+                    keyframes = []
+                
                 # Read 256 segment records for this file
                 for seg_idx in range(256):
                     data = f.read(SEGMENT_LEN)
@@ -109,11 +117,9 @@ class FootageParser:
                     if seg_type == 0:
                         continue
                     
-                    # Extract timestamps and offsets
+                    # Extract timestamps
                     start_time_64 = struct.unpack('<Q', data[8:16])[0]
                     end_time_64 = struct.unpack('<Q', data[16:24])[0]
-                    start_offset = struct.unpack('<I', data[40:44])[0]
-                    end_offset = struct.unpack('<I', data[44:48])[0]
                     
                     # Convert timestamps
                     start_time = start_time_64 & 0xFFFFFFFF
@@ -125,18 +131,25 @@ class FootageParser:
                     if end_time < start_time:
                         continue
                     
-                    # Skip placeholder offsets (0,1 or invalid)
-                    if start_offset >= end_offset or end_offset > stat.st_size or (end_offset - start_offset) < 1024:
-                        continue
-                    
-                    segments.append({
-                        'file': file_num,
-                        'segment': seg_idx,
-                        'start_time': start_time,
-                        'end_time': end_time,
-                        'start_offset': start_offset,
-                        'end_offset': end_offset
-                    })
+                    # Find keyframes for this segment's time range
+                    if keyframes:
+                        # Use first and last keyframe as segment boundaries
+                        # In production, map timestamps to specific keyframes
+                        start_offset = keyframes[0][1] if keyframes else 0
+                        end_offset = keyframes[-1][1] if len(keyframes) > 1 else stat.st_size
+                        
+                        # Skip if no valid range
+                        if start_offset >= end_offset or (end_offset - start_offset) < 1024:
+                            continue
+                        
+                        segments.append({
+                            'file': file_num,
+                            'segment': seg_idx,
+                            'start_time': start_time,
+                            'end_time': end_time,
+                            'start_offset': start_offset,
+                            'end_offset': end_offset
+                        })
             
             return segments
 
