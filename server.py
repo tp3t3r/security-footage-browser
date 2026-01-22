@@ -36,10 +36,7 @@ def progress():
 
 @app.route('/')
 def index():
-    days_param = request.args.get('days', config.getint('display', 'default_days'), type=int)
     camera = request.args.get('camera', type=int)
-    end = int(datetime.now().timestamp())
-    start = int((datetime.now() - timedelta(days=days_param)).timestamp())
     
     data = load_segments()
     cameras = [{'id': i, 'name': c['name']} for i, c in enumerate(data['cameras'])]
@@ -51,7 +48,21 @@ def index():
             seg['camera_id'] = int(cam_id)
             all_segments.append(seg)
     
-    segments = [s for s in all_segments if start < s['start_time'] < end]
+    # Remove duplicates (same camera_id, file, segment)
+    seen = set()
+    unique_segments = []
+    for seg in all_segments:
+        key = (seg['camera_id'], seg['file'], seg['segment'])
+        if key not in seen:
+            seen.add(key)
+            unique_segments.append(seg)
+    
+    # Filter by camera if specified
+    if camera is not None:
+        unique_segments = [s for s in unique_segments if s['camera_id'] == camera]
+    
+    # Sort by camera_id, then file number, then segment number
+    unique_segments.sort(key=lambda s: (s['camera_id'], s['file'], s['segment']))
     
     # Create camera lookup
     camera_map = {i: c for i, c in enumerate(data['cameras'])}
@@ -70,21 +81,17 @@ def index():
     last_recordings = {}
     for cam_id, segs in data['segments'].items():
         if segs:
-            latest = max(segs, key=lambda s: s['start_time'])
-            last_recordings[int(cam_id)] = datetime.fromtimestamp(latest['start_time']).strftime('%Y-%m-%d %H:%M:%S')
+            latest = max(segs, key=lambda s: s.get('start_time', 0))
+            last_recordings[int(cam_id)] = f"File {latest['file']}"
     
-    # Filter by camera if specified
-    if camera is not None:
-        segments = [s for s in segments if s['camera_id'] == camera]
-    
-    by_day = {}
-    for seg in segments:
+    # Group by file number instead of day
+    by_file = {}
+    for seg in unique_segments:
         cam = camera_map.get(seg['camera_id'], {})
-        day = datetime.fromtimestamp(seg['start_time']).strftime('%Y-%m-%d') if seg['start_time'] > 1000000000 else 'Unknown'
-        if day not in by_day:
-            by_day[day] = []
+        file_key = f"hiv{seg['file']:05d}.mp4"
+        if file_key not in by_file:
+            by_file[file_key] = []
         
-        seg['start_time_str'] = datetime.fromtimestamp(seg['start_time']).strftime('%Y-%m-%d %H:%M:%S') if seg['start_time'] > 1000000000 else 'N/A'
         seg['path'] = cam.get('path', '')
         seg['name'] = cam.get('name', f"Camera {seg['camera_id']}")
         
@@ -102,10 +109,10 @@ def index():
             seg['size'] = 'Unknown'
             seg['size_bytes'] = 0
         
-        by_day[day].append(seg)
+        by_file[file_key].append(seg)
     
     return render_template('index.html', 
-                         days=sorted(by_day.items(), reverse=True),
+                         files=sorted(by_file.items()),
                          cameras=cameras,
                          selected_camera=camera,
                          cache_size=cache_size_str,
