@@ -112,8 +112,8 @@ class FootageParser:
                     # Extract timestamps and offsets
                     start_time_64 = struct.unpack('<Q', data[8:16])[0]
                     end_time_64 = struct.unpack('<Q', data[16:24])[0]
-                    start_offset = struct.unpack('<I', data[36:40])[0]
-                    end_offset = struct.unpack('<I', data[40:44])[0]
+                    start_offset = struct.unpack('<I', data[40:44])[0]
+                    end_offset = struct.unpack('<I', data[44:48])[0]
                     
                     # Convert timestamps
                     start_time = start_time_64 & 0xFFFFFFFF
