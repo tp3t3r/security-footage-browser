@@ -157,7 +157,8 @@ def video():
                 '-ss', str(start_time),
                 '-i', video_file,
                 '-t', str(duration),
-                '-c', 'copy',
+                '-map', '0:v:0',  # Only video stream
+                '-c:v', 'copy',
                 '-avoid_negative_ts', 'make_zero',
                 '-f', 'mp4',
                 cached_file
