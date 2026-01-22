@@ -26,6 +26,7 @@ class FootageParser:
                     'name': cam_config['name']
                 })
         self.metacache_file = metacache_file
+        self.file_mtimes = {}  # Track file modification times
     
     def _parse_info_bin(self, info_file):
         with open(info_file, 'rb') as f:
@@ -35,16 +36,26 @@ class FootageParser:
     def parse_all(self):
         segments_by_camera = {}
         
+        # Load existing cache to check what's already parsed
+        existing_cache = {}
+        if os.path.exists(self.metacache_file):
+            try:
+                with open(self.metacache_file, 'r') as f:
+                    existing_cache = json.load(f)
+            except:
+                pass
+        
         # Write initial progress
         self._write_progress(0, len(self.datadirs), 0, 0)
         
         for idx, datadir in enumerate(self.datadirs):
             cam_id = str(datadir['num'])
-            segments_by_camera[cam_id] = self._parse_index(datadir, idx)
+            segments_by_camera[cam_id] = self._parse_index(datadir, idx, existing_cache.get('file_mtimes', {}))
         
         cache_data = {
             'cameras': [{'name': d['name'], 'path': d['path']} for d in self.datadirs],
-            'segments': segments_by_camera
+            'segments': segments_by_camera,
+            'file_mtimes': self.file_mtimes  # Track file modification times
         }
         
         with open(self.metacache_file, 'w') as f:
@@ -69,7 +80,7 @@ class FootageParser:
         with open(progress_file, 'w') as f:
             json.dump(progress, f)
     
-    def _parse_index(self, datadir, camera_idx):
+    def _parse_index(self, datadir, camera_idx, existing_mtimes):
         with open(datadir['index'], 'rb') as f:
             # Read header
             header_data = f.read(28)
@@ -90,6 +101,8 @@ class FootageParser:
                 self._write_progress(camera_idx, len(self.datadirs), file_num, av_files)
                 
                 video_file = os.path.join(datadir['path'], f'hiv{file_num:05d}.mp4')
+                file_key = f"{camera_idx}_{file_num}"
+                
                 if not os.path.exists(video_file):
                     # Skip all 256 segments for this file
                     f.seek(256 * SEGMENT_LEN, 1)
@@ -100,12 +113,32 @@ class FootageParser:
                     f.seek(256 * SEGMENT_LEN, 1)
                     continue
                 
+                # Check if file has changed since last parse
+                current_mtime = stat.st_mtime
+                if file_key in existing_mtimes and existing_mtimes[file_key] == current_mtime:
+                    # File unchanged, skip parsing but still read segment records
+                    f.seek(256 * SEGMENT_LEN, 1)
+                    continue
+                
+                # Store new mtime
+                self.file_mtimes[file_key] = current_mtime
+                    f.seek(256 * SEGMENT_LEN, 1)
+                    continue
+                
                 # Parse MP4 to get keyframe positions
                 try:
-                    mp4 = MP4Parser(video_file)
-                    keyframes = mp4.parse()
+                # Get video duration once per file
+                try:
+                    result = subprocess.run(
+                        ['ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                         '-of', 'default=noprint_wrappers=1:nokey=1', video_file],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    video_duration = float(result.stdout.strip())
+                    video_start_time = int(stat.st_mtime)
                 except:
-                    keyframes = []
+                    video_duration = 0
+                    video_start_time = 0
                 
                 # Read 256 segment records for this file
                 for seg_idx in range(256):
@@ -131,15 +164,16 @@ class FootageParser:
                     if end_time < start_time:
                         continue
                     
-                    # Find keyframes for this segment's time range
-                    if keyframes:
-                        # Use first and last keyframe as segment boundaries
-                        # In production, map timestamps to specific keyframes
-                        start_offset = keyframes[0][1] if keyframes else 0
-                        end_offset = keyframes[-1][1] if len(keyframes) > 1 else stat.st_size
+                    # Calculate time offsets within video (in seconds)
+                    if video_duration > 0 and video_start_time > 0:
+                        # Map segment timestamps to video timeline
+                        seg_start_offset = max(0, start_time - video_start_time)
+                        seg_end_offset = min(video_duration, end_time - video_start_time)
                         
-                        # Skip if no valid range
-                        if start_offset >= end_offset or (end_offset - start_offset) < 1024:
+                        # Skip if outside video range
+                        if seg_start_offset >= video_duration or seg_end_offset <= 0:
+                            continue
+                        if seg_end_offset - seg_start_offset < 1:
                             continue
                         
                         segments.append({
@@ -147,8 +181,8 @@ class FootageParser:
                             'segment': seg_idx,
                             'start_time': start_time,
                             'end_time': end_time,
-                            'start_offset': start_offset,
-                            'end_offset': end_offset
+                            'start_offset': seg_start_offset,  # Time offset in seconds
+                            'end_offset': seg_end_offset
                         })
             
             return segments

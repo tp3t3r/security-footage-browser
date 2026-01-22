@@ -146,26 +146,29 @@ def video():
     
     # Extract segment if not cached
     if not os.path.exists(cached_file):
-        start_offset = segment['start_offset']
-        end_offset = segment['end_offset']
+        start_time = segment['start_offset']  # Time in seconds
+        end_time = segment['end_offset']
+        duration = end_time - start_time
         
-        # Stream directly from file without temp extraction
+        # Use ffmpeg to extract segment by time
         try:
-            from flask import Response
-            def generate():
-                with open(video_file, 'rb') as f:
-                    f.seek(start_offset)
-                    remaining = end_offset - start_offset
-                    while remaining > 0:
-                        chunk_size = min(8192, remaining)
-                        chunk = f.read(chunk_size)
-                        if not chunk:
-                            break
-                        yield chunk
-                        remaining -= len(chunk)
+            cmd = [
+                'ffmpeg', '-y',
+                '-ss', str(start_time),
+                '-i', video_file,
+                '-t', str(duration),
+                '-c', 'copy',
+                '-avoid_negative_ts', 'make_zero',
+                '-f', 'mp4',
+                cached_file
+            ]
             
-            return Response(generate(), mimetype='video/mp4', 
-                          headers={'Content-Length': str(end_offset - start_offset)})
+            subprocess.run(cmd, check=True, capture_output=True, timeout=120)
+            
+        except subprocess.CalledProcessError as e:
+            return f"Extraction failed: {e.stderr.decode()}", 500
+        except subprocess.TimeoutExpired:
+            return "Extraction timeout", 500
         except Exception as e:
             return f"Error: {str(e)}", 500
     
