@@ -122,11 +122,7 @@ class FootageParser:
                 
                 # Store new mtime
                 self.file_mtimes[file_key] = current_mtime
-                    f.seek(256 * SEGMENT_LEN, 1)
-                    continue
                 
-                # Parse MP4 to get keyframe positions
-                try:
                 # Get video duration once per file
                 try:
                     result = subprocess.run(
