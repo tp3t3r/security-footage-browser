@@ -38,10 +38,12 @@ class FootageParser:
         
         # Load existing cache to check what's already parsed
         existing_cache = {}
+        existing_segments = {}
         if os.path.exists(self.metacache_file):
             try:
                 with open(self.metacache_file, 'r') as f:
                     existing_cache = json.load(f)
+                    existing_segments = existing_cache.get('segments', {})
             except:
                 pass
         
@@ -50,7 +52,11 @@ class FootageParser:
         
         for idx, datadir in enumerate(self.datadirs):
             cam_id = str(datadir['num'])
-            segments_by_camera[cam_id] = self._parse_index(datadir, idx, existing_cache.get('file_mtimes', {}))
+            # Start with existing segments for this camera
+            segments_by_camera[cam_id] = existing_segments.get(cam_id, []).copy()
+            # Parse and add new/changed segments
+            new_segments = self._parse_index(datadir, idx, existing_cache.get('file_mtimes', {}))
+            segments_by_camera[cam_id].extend(new_segments)
         
         cache_data = {
             'cameras': [{'name': d['name'], 'path': d['path']} for d in self.datadirs],
